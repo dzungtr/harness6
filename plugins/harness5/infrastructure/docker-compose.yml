@@ -334,11 +334,12 @@ services:
       SIGNOZ_URL: http://signoz:8080
       SIGNOZ_API_KEY: ${SIGNOZ_MCP_API_KEY:-not-required-impersonation-mode}
       LOG_LEVEL: ${SIGNOZ_MCP_LOG_LEVEL:-info}
+    # Distroless image (signoz/signoz-mcp-server) ships no wget/curl/shell,
+    # so CMD probes cannot execute — they exit 127 and mark the container
+    # "unhealthy" even though /livez serves HTTP 200. Disable the probe;
+    # liveness is verified via the host-published :3018/livez endpoint.
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:8000/livez"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      disable: true
 
   # One-shot: creates/updates the signoz_* ClickHouse schemas. The collector
   # below gates its own start on `migrate sync check`, so ordering is safe.
