@@ -1,4 +1,4 @@
-"""Unit tests for harness5/hooks/loader.py.
+"""Unit tests for harness6/hooks/loader.py.
 
 Coverage:
 - emits JSON with the correct SessionStart shape on stdout
@@ -10,8 +10,8 @@ Coverage:
 - main() returns 0 even on missing file
 - main() emits valid JSON when file exists
 
-The loader reads HARNESS5_INSTRUCTIONS_FILE (env var) when set, falling
-back to <script_dir>/references/harness5.md. Tests drive the script as a
+The loader reads HARNESS6_INSTRUCTIONS_FILE (env var) when set, falling
+back to <script_dir>/references/harness6.md. Tests drive the script as a
 subprocess with the env var pointing at tmp files; that exercises the
 real subprocess boundary instead of mocking, which would not survive a
 fresh interpreter.
@@ -27,16 +27,16 @@ import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parent / "loader.py"
-REAL_FIXTURE = Path(__file__).resolve().parent / "references" / "harness5.md"
+REAL_FIXTURE = Path(__file__).resolve().parent / "references" / "harness6.md"
 
 
 def _run_with_file(env_value: str | None) -> subprocess.CompletedProcess:
-    """Run loader.py with HARNESS5_INSTRUCTIONS_FILE set (or unset)."""
+    """Run loader.py with HARNESS6_INSTRUCTIONS_FILE set (or unset)."""
     env = os.environ.copy()
     if env_value is None:
-        env.pop("HARNESS5_INSTRUCTIONS_FILE", None)
+        env.pop("HARNESS6_INSTRUCTIONS_FILE", None)
     else:
-        env["HARNESS5_INSTRUCTIONS_FILE"] = env_value
+        env["HARNESS6_INSTRUCTIONS_FILE"] = env_value
     return subprocess.run(
         [sys.executable, str(SCRIPT)],
         capture_output=True,
@@ -69,17 +69,17 @@ class LoaderScriptTests(unittest.TestCase):
 
     def test_missing_file_silent_pass_through(self):
         """Missing file → no JSON on stdout, warning on stderr, exit 0."""
-        result = _run_with_file("/nonexistent/harness5.md")
+        result = _run_with_file("/nonexistent/harness6.md")
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "", "stdout should be empty on missing file")
         self.assertIn("not found", result.stderr)
-        self.assertIn("harness5:", result.stderr)
+        self.assertIn("harness6:", result.stderr)
 
     def test_unreadable_target_silent_pass_through(self):
         """OSError (e.g. file replaced with a directory) → no JSON, warning, exit 0."""
         # Make a directory where loader.py expects a file — read_text raises IsADirectoryError.
         import tempfile
-        with tempfile.TemporaryDirectory(prefix="harness5_unreadable_") as tmpdir:
+        with tempfile.TemporaryDirectory(prefix="harness6_unreadable_") as tmpdir:
             result = _run_with_file(tmpdir)  # directory, not a file
             self.assertEqual(result.returncode, 0, msg=f"stderr: {result.stderr}")
             self.assertEqual(result.stdout, "")
@@ -89,7 +89,7 @@ class LoaderScriptTests(unittest.TestCase):
         """File > 32K chars → still emits JSON, stderr warns but does not truncate."""
         import tempfile
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".md", delete=False, prefix="harness5_oversize_"
+            mode="w", suffix=".md", delete=False, prefix="harness6_oversize_"
         ) as f:
             big = "x" * (40_000)  # > 32_768
             f.write(big)
@@ -115,12 +115,12 @@ class LoaderScriptTests(unittest.TestCase):
         self.assertIsInstance(parsed, dict)
 
     def test_unset_env_falls_back_to_default(self):
-        """Without HARNESS5_INSTRUCTIONS_FILE, loader falls back to references/harness5.md.
+        """Without HARNESS6_INSTRUCTIONS_FILE, loader falls back to references/harness6.md.
 
         Run from the hooks/ directory so the default relative path resolves correctly.
         """
         env = os.environ.copy()
-        env.pop("HARNESS5_INSTRUCTIONS_FILE", None)
+        env.pop("HARNESS6_INSTRUCTIONS_FILE", None)
         result = subprocess.run(
             [sys.executable, str(SCRIPT)],
             capture_output=True,
@@ -146,13 +146,13 @@ class LoaderModuleTests(unittest.TestCase):
 
     def test_load_instructions_returns_none_when_missing(self):
         import loader
-        loader.INSTRUCTIONS_FILE = Path("/nonexistent/harness5.md")
+        loader.INSTRUCTIONS_FILE = Path("/nonexistent/harness6.md")
         content = loader.load_instructions()
         self.assertIsNone(content)
 
     def test_main_returns_zero_on_missing_file(self):
         import loader
-        loader.INSTRUCTIONS_FILE = Path("/nonexistent/harness5.md")
+        loader.INSTRUCTIONS_FILE = Path("/nonexistent/harness6.md")
         rc = loader.main()
         self.assertEqual(rc, 0)
 

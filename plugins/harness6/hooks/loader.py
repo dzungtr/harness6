@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""harness5 SessionStart hook loader.
+"""harness6 SessionStart hook loader.
 
-Reads references/harness5.md from this script's directory and emits it as
+Reads references/harness6.md from this script's directory and emits it as
 the additionalContext payload of a SessionStart hook event. Used by both
 Codex and Claude Code — both harnesses accept the same JSON shape.
 
@@ -23,14 +23,14 @@ SOFT_CAP_CHARS = 32_768
 SCRIPT_DIR = Path(__file__).resolve().parent
 INSTRUCTIONS_FILE = Path(
     os.environ.get(
-        "HARNESS5_INSTRUCTIONS_FILE",
-        SCRIPT_DIR / "references" / "harness5.md",
+        "HARNESS6_INSTRUCTIONS_FILE",
+        SCRIPT_DIR / "references" / "harness6.md",
     )
 )
 
 
 def warn(message: str) -> None:
-    sys.stderr.write(f"harness5: {message}\n")
+    sys.stderr.write(f"harness6: {message}\n")
     sys.stderr.flush()
 
 

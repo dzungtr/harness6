@@ -8,29 +8,29 @@ same git repository via the harness's native plugin marketplace.
 
 | Plugin | Path | Harnesses | Purpose |
 |--------|------|-----------|---------|
-| `harness5` | `plugins/harness5/` | Claude Code, Codex | Workflow skills (design-session, multi-task, agentic-memory, memsearch, graphsearch, standup, …) + the `infrastructure/` docker-compose stack (SigNoz, Graphiti memory) |
+| `harness6` | `plugins/harness6/` | Claude Code, Codex | Workflow skills (design-session, multi-task, agentic-memory, memsearch, graphsearch, standup, …) + the `infrastructure/` docker-compose stack (SigNoz, Graphiti memory) |
 | `auto-review` | `plugins/auto-review/` | Codex | LLM auto-review hook for `PermissionRequest` events |
 
 ## Install
 
-### Claude Code (harness5 only)
+### Claude Code (harness6 only)
 
 ```sh
 claude plugin marketplace add dzungtr/harness6
-claude plugin install harness5
+claude plugin install harness6
 ```
 
 ### Codex (both plugins)
 
 ```sh
 codex plugin marketplace add dzungtr/harness6
-codex plugin install harness5      # skills + infra stack
+codex plugin install harness6      # skills + infra stack
 codex plugin install auto-review   # permission auto-review hook
 ```
 
-### Post-install (harness5)
+### Post-install (harness6)
 
-After installing `harness5`, run the **`harness5-init`** skill — it scaffolds
+After installing `harness6`, run the **`harness6-init`** skill — it scaffolds
 `infrastructure/.env` from `.env.example`, brings up the shared compose stack,
 and waits for the SigNoz healthcheck. Once the stack is up:
 
@@ -40,9 +40,9 @@ and waits for the SigNoz healthcheck. Once the stack is up:
 
 | Path | Purpose |
 |------|---------|
-| `plugins/harness5/` | harness5 plugin: `skills/`, `infrastructure/`, `.codex-plugin/`, `.claude-plugin/` |
+| `plugins/harness6/` | harness6 plugin: `skills/`, `infrastructure/`, `.codex-plugin/`, `.claude-plugin/` |
 | `plugins/auto-review/` | auto-review plugin: hook scripts, `.codex-plugin/` |
-| `.claude-plugin/marketplace.json` | Claude Code marketplace (lists harness5) |
+| `.claude-plugin/marketplace.json` | Claude Code marketplace (lists harness6) |
 | `.agents/plugins/marketplace.json` | Codex marketplace (lists both plugins) |
 | `docs/adr/` | Architecture Decision Records |
 | `README.md`, `CONTEXT.md` | Repo-level docs |
@@ -59,4 +59,4 @@ shipped by either plugin.
 - [ADR 0006](docs/adr/0006-auto-review-llm-permission-agent.md) — auto-review
   LLM permission agent.
 - [ADR 0007](docs/adr/0007-multi-plugin-layout.md) — multi-plugin layout,
-  relocating harness5 into `plugins/harness5/`.
+  relocating the plugin into `plugins/harness6/`.

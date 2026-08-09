@@ -1,4 +1,4 @@
-"""Unit tests for harness5/hooks/validate.py.
+"""Unit tests for harness6/hooks/validate.py.
 
 Coverage:
 - all 6 checks PASS when plugin is fully wired up
@@ -41,7 +41,7 @@ class ValidateHappyPathTests(unittest.TestCase):
             "hooks-files-exist",
             "hooks-json-valid",
             "loader-executable",
-            "harness5-md-present",
+            "harness6-md-present",
         ):
             self.assertIn(f"[PASS] {label}", result.stdout, msg=f"missing PASS for {label}")
 
@@ -75,8 +75,8 @@ class ValidateFailureTests(unittest.TestCase):
     def _copy_plugin(self) -> Path:
         """Copy the plugin tree to a tmp dir so we can mutate it freely."""
         import shutil, tempfile
-        tmp = Path(tempfile.mkdtemp(prefix="harness5_validate_test_"))
-        dest = tmp / "harness5"
+        tmp = Path(tempfile.mkdtemp(prefix="harness6_validate_test_"))
+        dest = tmp / "harness6"
         shutil.copytree(PLUGIN_ROOT, dest)
         return dest
 
@@ -109,8 +109,8 @@ class ValidateFailureTests(unittest.TestCase):
         import shutil
         import tempfile
 
-        tmp = Path(tempfile.mkdtemp(prefix="harness5_validate_test_"))
-        dest = tmp / "harness5"
+        tmp = Path(tempfile.mkdtemp(prefix="harness6_validate_test_"))
+        dest = tmp / "harness6"
         shutil.copytree(PLUGIN_ROOT, dest)
         return dest
 
@@ -183,32 +183,32 @@ class ValidateFailureTests(unittest.TestCase):
             import shutil
             shutil.rmtree(plugin_copy.parent, ignore_errors=True)
 
-    def test_missing_harness5_md_fails(self):
-        """Deleting references/harness5.md fails harness5-md-present check."""
+    def test_missing_harness6_md_fails(self):
+        """Deleting references/harness6.md fails harness6-md-present check."""
         plugin_copy = self._copy_plugin_normalized()
         try:
-            (plugin_copy / "hooks" / "references" / "harness5.md").unlink()
+            (plugin_copy / "hooks" / "references" / "harness6.md").unlink()
             result = subprocess.run(
                 [sys.executable, str(VALIDATE), str(plugin_copy)],
                 capture_output=True, text=True, timeout=30,
             )
             self.assertEqual(result.returncode, 1)
-            self.assertIn("[FAIL] harness5-md-present", result.stdout)
+            self.assertIn("[FAIL] harness6-md-present", result.stdout)
         finally:
             import shutil
             shutil.rmtree(plugin_copy.parent, ignore_errors=True)
 
-    def test_empty_harness5_md_fails(self):
-        """Empty harness5.md fails harness5-md-present check."""
+    def test_empty_harness6_md_fails(self):
+        """Empty harness6.md fails harness6-md-present check."""
         plugin_copy = self._copy_plugin_normalized()
         try:
-            (plugin_copy / "hooks" / "references" / "harness5.md").write_text("   \n")
+            (plugin_copy / "hooks" / "references" / "harness6.md").write_text("   \n")
             result = subprocess.run(
                 [sys.executable, str(VALIDATE), str(plugin_copy)],
                 capture_output=True, text=True, timeout=30,
             )
             self.assertEqual(result.returncode, 1)
-            self.assertIn("[FAIL] harness5-md-present", result.stdout)
+            self.assertIn("[FAIL] harness6-md-present", result.stdout)
         finally:
             import shutil
             shutil.rmtree(plugin_copy.parent, ignore_errors=True)
@@ -250,15 +250,15 @@ class ValidateFailureTests(unittest.TestCase):
         """On failure, a stderr summary lists failed checks."""
         plugin_copy = self._copy_plugin_normalized()
         try:
-            (plugin_copy / "hooks" / "references" / "harness5.md").unlink()
+            (plugin_copy / "hooks" / "references" / "harness6.md").unlink()
             result = subprocess.run(
                 [sys.executable, str(VALIDATE), str(plugin_copy)],
                 capture_output=True, text=True, timeout=30,
             )
             self.assertEqual(result.returncode, 1)
             self.assertIn("failure(s)", result.stderr)
-            self.assertIn("harness5-md-present", result.stderr)
-            self.assertIn("harness5-md-present", result.stderr)
+            self.assertIn("harness6-md-present", result.stderr)
+            self.assertIn("harness6-md-present", result.stderr)
         finally:
             import shutil
             shutil.rmtree(plugin_copy.parent, ignore_errors=True)

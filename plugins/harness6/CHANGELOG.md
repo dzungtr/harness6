@@ -1,6 +1,48 @@
 # Changelog
 
-All notable changes to the `harness5` plugin.
+All notable changes to the `harness6` plugin.
+
+## [0.3.0] - 2026-08-09
+
+Renames the plugin from `harness5` to `harness6` to align with the
+repository name (`dzungtr/harness6`) and the `harness6` branding already
+used throughout the repo and ADRs. This is a **breaking change**: the
+plugin install name changes from `harness5` to `harness6`.
+
+### Changed
+
+- **Plugin rename** — `plugins/harness5/` renamed to `plugins/harness6/`.
+  All manifest names, marketplace entries, skill names, env vars, hooks,
+  references, tests, and documentation updated to `harness6`.
+- **Skill rename** — `harness5-init` → `harness6-init`. The
+  `HARNESS5_PLUGIN_ROOT` env var is now `HARNESS6_PLUGIN_ROOT`.
+- **Hook env var** — `HARNESS5_INSTRUCTIONS_FILE` →
+  `HARNESS6_INSTRUCTIONS_FILE`. The loader stderr prefix changed from
+  `harness5:` to `harness6:`.
+- **References file** — `hooks/references/harness5.md` →
+  `hooks/references/harness6.md`. Title updated from "Harness 5" to
+  "Harness 6".
+- **Self-check** — `harness5-md-present` check renamed to
+  `harness6-md-present`; `EXPECTED_VERSION` bumped to `0.3.0`.
+- **Version bump** — `0.2.2` → `0.3.0` (minor; breaking).
+
+### Breaking
+
+- `claude plugin install harness5` no longer works — use `claude plugin
+  install harness6`.
+- `codex plugin install harness5` no longer works — use `codex plugin
+  install harness6`.
+- Users who set `HARNESS5_INSTRUCTIONS_FILE` or `HARNESS5_PLUGIN_ROOT`
+  must update to the `HARNESS6_` prefix.
+
+### Notes
+
+- Historical ADRs (`0005-harness5-plugin-distribution.md`,
+  `0007-multi-plugin-layout.md`) are left unchanged — they are historical
+  decision records and accurately describe the state at the time they were
+  written.
+- Previous `[0.2.x]` changelog entries are preserved as-is; they describe
+  releases of the plugin when it was named `harness5`.
 
 ## [0.2.2] - 2026-07-25
 

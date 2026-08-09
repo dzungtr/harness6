@@ -1,5 +1,5 @@
 {
-  "description": "Inject bundled harness5 operating instructions on every Codex session start.",
+  "description": "Inject bundled harness6 operating instructions on every Codex session start.",
   "hooks": {
     "SessionStart": [
       {
