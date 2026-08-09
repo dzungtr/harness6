@@ -9,11 +9,11 @@ downloads
 file-history/**/*
 plans/**/*
 plugins/**/*
-# Allow tracked plugins (auto-review, harness5) despite the broad ignore above.
+# Allow tracked plugins (auto-review, harness6) despite the broad ignore above.
 !plugins/auto-review/
 !plugins/auto-review/**
-!plugins/harness5/
-!plugins/harness5/**
+!plugins/harness6/
+!plugins/harness6/**
 projects/**/*
 session-env/**/*
 sessions/**/*
@@ -56,3 +56,4 @@ infrastructure/volumes/
 # Python bytecode caches (auto-review tests, etc.)
 __pycache__/
 *.pyc
+.pi-subagents/

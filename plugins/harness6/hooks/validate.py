@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
-"""harness5 plugin self-check.
+"""harness6 plugin self-check.
 
 Mirrors the subset of Codex's `validate_plugin.py` that the slice-#9
 acceptance criteria require, plus plugin-specific checks that the generic
 validator doesn't cover:
 
   1. manifest-version: both `.codex-plugin/plugin.json` and
-     `.claude-plugin/plugin.json` declare version "0.2.2".
+     `.claude-plugin/plugin.json` declare version "0.3.0".
   2. manifest-hooks-field: `.codex-plugin/plugin.json` references
      `./codex/hooks.json` and `.claude-plugin/plugin.json` references
      `./claude/hooks.json`.
   3. hooks-files-exist: codex/hooks.json, claude/hooks.json, loader.py,
-     and references/harness5.md are all present.
+     and references/harness6.md are all present.
   4. hooks-json-valid: both hooks.json files parse as JSON and have the
      right `hooks.SessionStart` shape.
   5. loader-executable: hooks/loader.py has the +x bit set.
-  6. harness5-md-present: references/harness5.md exists and is non-empty.
+  6. harness6-md-present: references/harness6.md exists and is non-empty.
 
 Exits 0 on success, 1 on failure, and prints a per-check PASS/FAIL line
 plus a stderr summary. The summary line is parseable for CI use.
 
 Usage:
-    python3 plugins/harness5/hooks/validate.py [<plugin-root>]
+    python3 plugins/harness6/hooks/validate.py [<plugin-root>]
 
 If <plugin-root> is omitted, the script's parent's parent is used (i.e. the
 plugin directory is inferred from the location of validate.py).
@@ -35,7 +35,7 @@ import sys
 from pathlib import Path
 from typing import Callable, List, Tuple
 
-EXPECTED_VERSION = "0.2.2"
+EXPECTED_VERSION = "0.3.0"
 CLAUDE_HOOK_PATH = "./claude/hooks.json"
 
 
@@ -100,7 +100,7 @@ def _hook_files(plugin_root: Path) -> List[Path]:
         plugin_root / "hooks" / "hooks.json",
         plugin_root / "hooks" / "claude" / "hooks.json",
         plugin_root / "hooks" / "loader.py",
-        plugin_root / "hooks" / "references" / "harness5.md",
+        plugin_root / "hooks" / "references" / "harness6.md",
     ]
 
 
@@ -165,17 +165,17 @@ def check_loader_executable(plugin_root: Path) -> Tuple[bool, str]:
     return True, f"hooks/loader.py is executable ({script})"
 
 
-def check_harness5_md_present(plugin_root: Path) -> Tuple[bool, str]:
-    md = plugin_root / "hooks" / "references" / "harness5.md"
+def check_harness6_md_present(plugin_root: Path) -> Tuple[bool, str]:
+    md = plugin_root / "hooks" / "references" / "harness6.md"
     if not md.is_file():
-        return False, "missing hooks/references/harness5.md"
+        return False, "missing hooks/references/harness6.md"
     try:
         text = md.read_text(encoding="utf-8")
     except OSError as exc:
-        return False, f"could not read hooks/references/harness5.md: {exc}"
+        return False, f"could not read hooks/references/harness6.md: {exc}"
     if not text.strip():
-        return False, "hooks/references/harness5.md is empty"
-    return True, f"hooks/references/harness5.md present ({len(text)} chars)"
+        return False, "hooks/references/harness6.md is empty"
+    return True, f"hooks/references/harness6.md present ({len(text)} chars)"
 
 
 # Order matters for readability of the output. Each entry is (label, function).
@@ -185,7 +185,7 @@ CHECKS: List[Tuple[str, Callable[[Path], Tuple[bool, str]]]] = [
     ("hooks-files-exist",     check_hooks_files_exist),
     ("hooks-json-valid",      check_hooks_json_valid),
     ("loader-executable",     check_loader_executable),
-    ("harness5-md-present",   check_harness5_md_present),
+    ("harness6-md-present",   check_harness6_md_present),
 ]
 
 

@@ -1,5 +1,5 @@
 {
-  "description": "Inject bundled harness5 operating instructions on every Claude Code session start.",
+  "description": "Inject bundled harness6 operating instructions on every Claude Code session start.",
   "hooks": {
     "SessionStart": [
       {

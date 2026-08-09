@@ -5,10 +5,10 @@
   },
   "plugins": [
     {
-      "name": "harness5",
+      "name": "harness6",
       "source": {
         "source": "local",
-        "path": "./plugins/harness5"
+        "path": "./plugins/harness6"
       },
       "policy": {
         "installation": "AVAILABLE",

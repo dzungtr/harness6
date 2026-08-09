@@ -1,0 +1,37 @@
+{
+  "name": "harness6",
+  "version": "0.3.0",
+  "description": "harness6 ships the harness6 workflow skills and a local infrastructure stack (OpenTelemetry collector, SigNoz) as a self-contained plugin for Claude Code and Codex, living under plugins/harness6/ in a multi-plugin distribution repo.",
+  "author": {
+    "name": "dzungtr",
+    "url": "https://github.com/dzungtr"
+  },
+  "homepage": "https://github.com/dzungtr/harness6",
+  "repository": "https://github.com/dzungtr/harness6",
+  "keywords": [
+    "harness6",
+    "skills",
+    "infrastructure",
+    "claude-code",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "harness6",
+    "shortDescription": "harness6 workflow skills and local infra stack (OTel, SigNoz) for Claude Code and Codex.",
+    "longDescription": "harness6 is the harness6 workflow-skills and infrastructure plugin, packaged self-contained under plugins/harness6/. The same skills/ and infrastructure/ tree ships to both Claude Code and Codex. After a fresh install, run the harness6-init skill to scaffold infrastructure/.env from .env.example and bring the docker compose stack (OpenTelemetry collector, SigNoz) up as a shared local instance.",
+    "developerName": "dzungtr",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Set up a fresh harness6 install on this machine.",
+      "List the skills available in harness6.",
+      "What infrastructure services does harness6 start?"
+    ],
+    "websiteURL": "https://github.com/dzungtr/harness6"
+  }
+}

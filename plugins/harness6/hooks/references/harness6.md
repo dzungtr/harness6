@@ -1,6 +1,6 @@
-# Harness 5 — Agent operating instructions
+# Harness 6 — Agent operating instructions
 
-This file organises agent instructions around the five pillars of harness infrastructure; every project using harness5 follows this structure.
+This file organises agent instructions around the five pillars of harness infrastructure; every project using harness6 follows this structure.
 
 1. Memory — retrieve durable knowledge and preserve ambient progress-state.
 2. Backlog management — keep initiatives and executable work in GitHub Issues.
@@ -10,7 +10,7 @@ This file organises agent instructions around the five pillars of harness infras
 
 ## Pillar 1 — Memory
 
-Harness5 provides two complementary forms of memory. RAG memory uses `memsearch` to index `docs/` into the Milvus vector database for decision and constraint searches, including glossary lookups, fact checks, and how-to questions. Temporal memory uses Graphiti through the `memory` MCP server and the `agentic-memory-read` and `agentic-memory-write` skills to preserve ambient progress-state between sessions.
+Harness6 provides two complementary forms of memory. RAG memory uses `memsearch` to index `docs/` into the Milvus vector database for decision and constraint searches, including glossary lookups, fact checks, and how-to questions. Temporal memory uses Graphiti through the `memory` MCP server and the `agentic-memory-read` and `agentic-memory-write` skills to preserve ambient progress-state between sessions.
 
 ### Memsearch auto-context
 
@@ -47,7 +47,7 @@ The temptation to list files first and infer coverage from names is a known fail
 
 ### Temporal memory
 
-Graphiti memory is ambient progress-state, not a decision store: a self-service, non-authoritative catch-net so a later cold start can pick up smoothly. The `graphiti-mcp` Compose service lives in `plugins/harness5/infrastructure/docker-compose.yml`; its entity-type schema is in `plugins/harness5/infrastructure/config.yaml`, and its environment variables are in `plugins/harness5/infrastructure/.env.example`.
+Graphiti memory is ambient progress-state, not a decision store: a self-service, non-authoritative catch-net so a later cold start can pick up smoothly. The `graphiti-mcp` Compose service lives in `plugins/harness6/infrastructure/docker-compose.yml`; its entity-type schema is in `plugins/harness6/infrastructure/config.yaml`, and its environment variables are in `plugins/harness6/infrastructure/.env.example`.
 
 - **Cold-start / picking up work:** before touching code, use the `agentic-memory-read` skill for the resolved scope derived from the git remote plus branch, PR, or task brief. Re-query when descending from an epic into a child ticket mid-session.
 - **During work:** use the `agentic-memory-write` skill event-driven — on a blocker, discovered drift, stopping point, silent descope, or resolution of a previously noted blocker or drift. Write standup prose for the next developer: where the work stands, what the catch is, and where to pick up. Do not continuously log every step.
