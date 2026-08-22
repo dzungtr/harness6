@@ -48,9 +48,8 @@ pattern, and treat the repo as a multi-plugin distribution repo.
   `PLUGIN_ROOT` / `CLAUDE_PLUGIN_ROOT` and then looks for
   `infrastructure/` directly under that root. Both harnesses set the env
   var to the installed plugin's own directory, so the path-depth change is
-  absorbed automatically. Bare `infrastructure/...` paths used by other
-  skills (`graphsearch-index`, `agentic-memory-read`) likewise still
-  resolve.
+  absorbed automatically. Bare `infrastructure/...` paths used by
+  `agentic-memory-read` likewise still resolve.
 - **Repo-root content is development-only.** `settings.json`, `agents/`,
   `hooks/`, `scripts/`, `docs/`, `.memsearch.toml`, `.mcp.json`, and the
   root `README.md`/`CONTEXT.md` remain at repo root but are no longer part

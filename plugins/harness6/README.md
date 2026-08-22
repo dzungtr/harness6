@@ -10,7 +10,7 @@ harnesses with no duplication.
 
 | Path | Purpose |
 |------|---------|
-| `skills/` | Workflow skills: `design-session`, `multi-task`, `scope-review`, `agentic-memory-*`, `memsearch-*`, `graphsearch-*`, `harness6-init`, `standup`, `autobot`, `self-improvement`, `pr-merged-cleanup`, `awsctx`, `sentry-cli` |
+| `skills/` | Workflow skills: `design-session`, `scope-review`, `agentic-memory-*`, `memsearch-*`, `harness6-init`, `autobot`, `self-improvement`, `pr-merged-cleanup` |
 | `infrastructure/` | Docker Compose stack + configs (SigNoz, OTel collector, Graphiti memory) |
 | `hooks/` | `SessionStart` hook (Codex + Claude Code) + bundled `references/harness6.md` |
 | `.codex-plugin/plugin.json` | Codex plugin manifest |
@@ -46,7 +46,7 @@ plugins/harness6/
 │   └── plugin.json                 # Codex manifest (skills: ./skills/)
 ├── .claude-plugin/
 │   └── plugin.json                 # Claude Code manifest (skills: ./skills)
-├── skills/                         # workflow skills (18 dirs)
+├── skills/                         # workflow skills (11 dirs)
 ├── infrastructure/                 # docker-compose.yml, .env.example, signoz/
 ├── hooks/                          # SessionStart hook (Codex + Claude Code)
 │   ├── hooks.json                  # Codex hooks config (auto-discovered)
