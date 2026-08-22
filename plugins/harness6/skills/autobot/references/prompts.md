@@ -12,7 +12,7 @@ End your run with a structured summary of AT MOST 10 lines:
 Return nothing else. The orchestrator never reads your working detail.
 ```
 
-## 1. scope-review — model: sonnet
+## 1. scope-review — highest-capability available model
 
 ```
 Run /scope-review on this goal exactly as stated. Do not reframe or decompose it.
@@ -22,7 +22,7 @@ Goal: "<goal>"
 Report PASS or FAIL plus the three one-line criteria rationales, nothing more.
 ```
 
-## 2. architecture session (decompose only) — model: fable → opus
+## 2. architecture session (decompose only) — highest-capability available model
 
 ```
 Map out "<goal>" as an ordered sequence of independent PR slices.
@@ -35,12 +35,12 @@ body if the sub-issue API is unavailable). Each issue body: one-line goal,
 what "done" observably means, and a "Blocked by" field.
 ```
 
-## 3. autonomous design session — model: fable → opus
+## 3. autonomous design session — highest-capability available model
 
 ```
 Run /design-session <goal> in fully autonomous mode:
 
-- You are already on the target model; skip both /model switch steps.
+- You are already on the target model; skip both model-selection steps.
 - For every interview question the grilling raises, adopt your own
   recommended answer and continue — never wait for a human.
 - Self-approve the PRD and the issue breakdown when you are satisfied
@@ -50,7 +50,7 @@ Run /design-session <goal> in fully autonomous mode:
   docs PR yourself (worktree + PR convention, never commit to main).
 ```
 
-## 4. implementer — model: sonnet, isolation: worktree
+## 4. implementer — highest-capability available model, isolation: worktree
 
 ```
 Implement GitHub issue <slice-issue>. Read the issue body and its agent brief
@@ -61,7 +61,7 @@ Work test-first, verify everything passes, then open a PR that references
 the issue with "Closes #<slice-issue>" in the body.
 ```
 
-## 5. reviewer / merger — model: fable → opus
+## 5. reviewer / merger — highest-capability available model
 
 ```
 Review PR <pr> for autonomous merge. You did not write this code.
