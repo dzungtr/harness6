@@ -2,6 +2,16 @@
 
 All notable changes to the `harness6` plugin.
 
+## [0.3.1] - 2026-08-09
+
+Patch release removing provider-specific model assumptions from the
+`design-session` skill.
+
+### Changed
+
+- **Model-agnostic design session** — removed vendor-specific model-switching
+  instructions while preserving the design workflow.
+
 ## [0.3.0] - 2026-08-09
 
 Renames the plugin from `harness5` to `harness6` to align with the
