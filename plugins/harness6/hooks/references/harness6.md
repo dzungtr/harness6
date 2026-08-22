@@ -51,7 +51,7 @@ Graphiti memory is ambient progress-state, not a decision store: a self-service,
 
 - **Cold-start / picking up work:** before touching code, use the `agentic-memory-read` skill for the resolved scope derived from the git remote plus branch, PR, or task brief. Re-query when descending from an epic into a child ticket mid-session.
 - **During work:** use the `agentic-memory-write` skill event-driven — on a blocker, discovered drift, stopping point, silent descope, or resolution of a previously noted blocker or drift. Write standup prose for the next developer: where the work stands, what the catch is, and where to pick up. Do not continuously log every step.
-- **Three homes:** ADR (architectural *why*) / GitHub Issues (*what*, system of record) / Memory (tacit catch-net, non-authoritative). Memory never substitutes for ticket or ADR hygiene: update the ticket when its state changes, and record real architectural decisions in ADRs.
+- **Three homes:** ADR (architectural _why_) / GitHub Issues (_what_, system of record) / Memory (tacit catch-net, non-authoritative). Memory never substitutes for ticket or ADR hygiene: update the ticket when its state changes, and record real architectural decisions in ADRs.
 - Never write secrets to memory.
 
 ## Pillar 2 — Backlog management
@@ -96,3 +96,11 @@ Agent observability supports self-reflection and behaviour improvement over time
 - The `cc-observability` MCP server gives agents queryable access to telemetry, including traces, metrics, and logs.
 - Use the `self-improvement` skill to ground reflection in observed telemetry rather than guesses.
 - Deliver reflection-driven changes to skills or `CLAUDE.md` as PRs.
+
+## Pillar 6 Guardrail and constraints sandbox
+
+An agent given a high level of autonomy — free to make its own decisions about tool calls — needs to run inside a constraint sandbox. The sandbox runs a deterministic policy engine that allows or denies each tool call. An allowed call returns its response directly; a denied call returns an EPERM-style message that feeds back into the agent's own loop, so it can try a different approach or abort and report to its parent/monitor.
+
+Claude Code is too convenient to use and Anthropic's models are highly capable, but the same trust cannot be extended to other, open-weight models running with the same tools. All agents should run inside a sandbox. Project instructions should tell an agent whether it is currently running inside a sandbox, since that knowledge improves its autonomous decision-making.
+
+The sandbox can be either container-based or host-based. Technology: bubblewrap, docker, container, podman, sandbox-runtime, and similar tools.
