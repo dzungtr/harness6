@@ -68,47 +68,6 @@ services:
       - etcd
       - milvus-minio
 
-  # Memgraph – graph DB for graphsearch (codebase relationship indexing)
-  # Bolt: bolt://localhost:7687  |  Lab UI: http://localhost:3000 (inside container only)
-  # HTTP monitoring: http://localhost:7444
-  memgraph:
-    container_name: memgraph
-    image: memgraph/memgraph:latest
-    restart: unless-stopped
-    # memgraph image runs as uid 101 (memgraph); bind mounts owned by the host
-    # user cause a SIGSEGV (exit 139) when the non-root process cannot write.
-    # Run as root so the container can write to the bind-mounted volumes.
-    user: root
-    command:
-      [
-        "--also-log-to-stderr=true",
-        "--log-level=INFO",
-        "--bolt-port=7687",
-        "--monitoring-port=7444",
-        "--storage-mode=IN_MEMORY_TRANSACTIONAL",
-        "--storage-wal-enabled=true",
-        "--storage-snapshot-interval-sec=300",
-        "--storage-snapshot-on-exit=true",
-      ]
-    ports:
-      - "7687:7687" # Bolt protocol
-      - "3014:3000" # Bolt protocol
-      - "7444:7444" # HTTP monitoring
-    volumes:
-      - memgraph_data:/var/lib/memgraph:z
-      - memgraph_log:/var/log/memgraph:z
-      - memgraph_etc:/etc/memgraph:z
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "echo 'RETURN 1;' | mgconsole --host localhost --port 7687",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 60s
-
   # Graphiti temporal knowledge-graph memory layer, exposed as the `memory`
   # MCP server (see skills/agentic-memory-read/SKILL.md). Uses the upstream
   # combined container (FalkorDB + MCP server bundled together) rather than
@@ -410,11 +369,5 @@ volumes:
   milvus_minio_data:
     driver: local
   milvus_data:
-    driver: local
-  memgraph_data:
-    driver: local
-  memgraph_log:
-    driver: local
-  memgraph_etc:
     driver: local
 

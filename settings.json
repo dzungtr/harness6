@@ -72,7 +72,6 @@
       "Bash(docker *)",
       "Bash(podman *)",
       "Bash(memsearch *)",
-      "Bash(graphsearch *)",
       "Bash(podman-compose *)",
       "Bash(helm list *)",
       "Bash(helm ls *)",

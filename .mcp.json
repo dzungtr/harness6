@@ -3,6 +3,10 @@
     "cc-observability": {
       "type": "http",
       "url": "http://localhost:3018/mcp"
+    },
+    "agentic-memory": {
+      "type": "http",
+      "url": "http://localhost:8121/mcp/"
     }
   }
 }

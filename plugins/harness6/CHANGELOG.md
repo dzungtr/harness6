@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Removed
+
+- Removed the obsolete `graphsearch`, `awsctx`, `sentry-cli`, `multi-task`, and `standup` skills and their supporting files.
+
+
 All notable changes to the `harness6` plugin.
 
 ## [0.3.1] - 2026-08-09
