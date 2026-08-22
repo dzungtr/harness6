@@ -1,6 +1,6 @@
 ---
 name: graphsearch-index
-description: Use when indexing or re-indexing a workspace into the Memgraph graph — user runs /graphsearch-index or has added/changed infra or K8s manifests since last index.
+description: Use when indexing or re-indexing a workspace into the configured graph database — user runs /graphsearch-index or has added/changed infra or K8s manifests since last index.
 ---
 
 # /graphsearch-index — Index or re-index the workspace
@@ -23,19 +23,9 @@ Check if `<REPO_ROOT>/.graphsearch.toml` exists.
 
 Read it. Extract `workspace` as `WORKSPACE`.
 
-## 3. Confirm Memgraph is reachable
+## 3. Confirm the configured graph database is reachable
 
-Verify the Memgraph compose service is running:
-
-```
-docker compose -f infrastructure/docker-compose.yml ps memgraph
-```
-
-If not running:
-> **graphsearch-index: Memgraph is not running.** Start it with:
-> ```
-> docker compose -f infrastructure/docker-compose.yml up -d memgraph
-> ```
+Read the graph database connection settings from `.graphsearch.toml` and verify that the configured endpoint is reachable. If the endpoint is unavailable, report the connection error and stop.
 
 ## 4. Run indexer
 

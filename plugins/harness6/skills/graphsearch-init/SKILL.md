@@ -27,7 +27,7 @@ Check if `<REPO_ROOT>/.graphsearch.toml` exists.
 graphsearch init
 ```
 
-This prompts for workspace name, bolt_uri, k8s_overlays, and terraform_roots.
+This prompts for workspace name, graph database connection settings, k8s_overlays, and terraform_roots.
 The command refuses to clobber an existing config file.
 
 If graphsearch exits non-zero:
@@ -41,4 +41,4 @@ If graphsearch exits non-zero:
 
 > **graphsearch-init complete.**
 > - Config written to: `<REPO_ROOT>/.graphsearch.toml`
-> - Run `graphsearch index` to index this workspace into Memgraph.
+> - Run `graphsearch index` to index this workspace into the configured graph database.
