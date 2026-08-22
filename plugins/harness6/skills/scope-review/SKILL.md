@@ -40,7 +40,7 @@ Does this slice stand alone as a unit of observable value — not just scaffoldi
 
 ## Model selection
 
-Run this evaluation with the `opus` model. Scope decisions are high-stakes judgment calls — getting the boundary wrong means a PR that is too large to review or a design session that produces a plan that can't be shipped independently.
+Run this evaluation with the highest-capability available model. Scope decisions are high-stakes judgment calls — getting the boundary wrong means a PR that is too large to review or a design session that produces a plan that can't be shipped independently.
 
 ## Process
 
