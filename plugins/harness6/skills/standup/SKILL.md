@@ -1,6 +1,6 @@
 ---
 name: standup
-description: Project-aware daily triage. Aggregates external signals (Jira, Sentry, observability) declared in .claude/standup.json and reconciles them against open GitHub Issues. Produces a 5-bucket ranked report (ACT NOW, TRACKED-UPDATED, IN FLIGHT, STALE, Plan) and persists it to .claude/standups/YYYY-MM-DD.md. Use when the user runs /standup, asks for their daily plan, or wants to know what to work on next in the current repo. Requires the highest available Claude model (currently Opus 4.7) — reconciliation needs nuanced reasoning.
+description: Project-aware daily triage. Aggregates external signals (Jira, Sentry, observability) declared in .claude/standup.json and reconciles them against open GitHub Issues. Produces a 5-bucket ranked report (ACT NOW, TRACKED-UPDATED, IN FLIGHT, STALE, Plan) and persists it to .claude/standups/YYYY-MM-DD.md. Use when the user runs /standup, asks for their daily plan, or wants to know what to work on next in the current repo. Requires the highest-capability available model — reconciliation needs nuanced reasoning.
 ---
 
 # /standup — Daily triage ritual
