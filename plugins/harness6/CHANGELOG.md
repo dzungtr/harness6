@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Changed
+
+- **harness6-init setup** — selects Docker or Podman interactively when both are installed,
+  starts Compose with explicit environment and Compose file arguments, safely registers the
+  repository MCP configuration at user or project scope, and guides explicit Milvus and embedding
+  provider configuration through `memsearch-init`.
+
+## [0.3.2] - 2026-08-09
+
+Patch release for the harness6-init setup workflow.
+
+### Changed
+
+- Added runtime selection, safe MCP registration, and memsearch setup guidance to harness6-init.
+
 ### Removed
 
 - Removed the obsolete `graphsearch`, `awsctx`, `sentry-cli`, `multi-task`, and `standup` skills and their supporting files.
