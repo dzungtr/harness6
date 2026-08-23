@@ -35,7 +35,7 @@ import sys
 from pathlib import Path
 from typing import Callable, List, Tuple
 
-EXPECTED_VERSION = "0.3.3"
+EXPECTED_VERSION = "0.3.4"
 CLAUDE_HOOK_PATH = "./claude/hooks.json"
 
 
