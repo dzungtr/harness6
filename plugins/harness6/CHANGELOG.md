@@ -2,8 +2,15 @@
 
 ## Unreleased
 
+## [0.3.3] - 2026-08-23
+
+Patch release bumping the harness6 plugin version to 0.3.3.
+
 ### Changed
 
+- **Plugin version bump** — `plugins/harness6` manifests (`.claude-plugin/plugin.json`,
+  `.codex-plugin/plugin.json`), `hooks/validate.py` `EXPECTED_VERSION`, and the marketplace
+  plugin entry bumped to `0.3.3`. No functional behaviour change.
 - **harness6-init setup** — selects Docker or Podman interactively when both are installed,
   starts Compose with explicit environment and Compose file arguments, safely registers the
   repository MCP configuration at user or project scope, and guides explicit Milvus and embedding
