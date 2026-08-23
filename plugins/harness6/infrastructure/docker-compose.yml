@@ -267,9 +267,6 @@ services:
       SIGNOZ_USER_ROOT_ORG_NAME: ${SIGNOZ_USER_ROOT_ORG_NAME:-default}
     volumes:
       - signoz_sqlite_data:/var/lib/signoz/
-    # No healthcheck: the original wget probe was a false indicator for this
-    # container, so it has been removed. Liveness is observed through the
-    # UI/API published on :8080.
 
   # Official SigNoz MCP server, HTTP transport. Talks to `signoz` in-network
   # (not the host-published port); its own HTTP endpoint is published
