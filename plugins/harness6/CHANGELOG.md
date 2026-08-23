@@ -1,6 +1,20 @@
 # Changelog
 
-## Unreleased
+## [0.3.4] - 2026-08-23
+
+Patch release updating the `autobot` skill's post-merge flow, the `design-session` skill's frontmatter, and the bundled plugin version.
+
+### Added
+
+- **autobot post-merge cleanup** — after a PR merges, the main session now pulls the local main workspace up to date, tears down the merged PR's worktree (and deletes its branch), and triggers `/memsearch-index` when the merged PR touched a path listed in `.memsearch.toml`.
+
+### Removed
+
+- **autobot results promotion step** — dropped the standalone "Results promotion" loop step (formerly step 7); results are no longer promoted into ADR stubs via a separate docs PR.
+
+### Fixed
+
+- **design-session frontmatter** — quoted the `description` field so the embedded `SKIP for:` colon no longer breaks YAML parsing (`mapping values are not allowed in this context`).
 
 ## [0.3.3] - 2026-08-23
 

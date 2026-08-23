@@ -70,7 +70,7 @@ class ValidateFailureTests(unittest.TestCase):
 
     EXPECTED_CODEX_HOOKS = "./codex/hooks.json"
     EXPECTED_CLAUDE_HOOKS = "./claude/hooks.json"
-    EXPECTED_VERSION = "0.3.3"
+    EXPECTED_VERSION = "0.3.4"
 
     def _copy_plugin(self) -> Path:
         """Copy the plugin tree to a tmp dir so we can mutate it freely."""

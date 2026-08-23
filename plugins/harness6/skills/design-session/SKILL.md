@@ -1,6 +1,6 @@
 ---
 name: design-session
-description: Use when the human asks to design, plan, or build a non-trivial feature, refactor, or change that needs upfront design (multiple files, architectural decisions, ambiguous requirements, "let's build/design/plan X"). Runs the full grill-with-docs → PRD → issues flow inline in this session. SKIP for: small bugfixes, single-file edits, well-scoped changes with clear requirements, or pure questions.
+description: "Use when the human asks to design, plan, or build a non-trivial feature, refactor, or change that needs upfront design (multiple files, architectural decisions, ambiguous requirements, \"let's build/design/plan X\"). Runs the full grill-with-docs → PRD → issues flow inline in this session. SKIP for: small bugfixes, single-file edits, well-scoped changes with clear requirements, or pure questions."
 ---
 
 # design-session
