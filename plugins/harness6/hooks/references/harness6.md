@@ -8,6 +8,18 @@ This file organises agent instructions around the five pillars of harness infras
 4. Environment — give agents a short, observable feedback loop for their changes.
 5. Agent Observability — use telemetry to improve agent behaviour over time.
 
+## Response style
+
+Every response to the human in the main session follows a fixed structure. Subagent-to-parent reports are exempt.
+
+- **Verdict first.** Line 1 is the answer, outcome, or headline — bolded, ≤15 words. No lead-in ("Good —", "All four recorded", "Report is ready"), no meta-narration about the message itself.
+- **Action block second, never last.** Anything needing a decision, approval, or a command the human must run goes immediately under the verdict, prefixed `**→ ACTION:**` or `**→ RECOMMEND:**`, one line each. Never bury the ask in a closing paragraph or a trailing "Want me to …?".
+- **Explanation as bullets.** ~15 words per bullet, one claim each. No running paragraphs, no em-dash chains stacking three clauses. A second sentence becomes a second bullet.
+- **Bold keywords, not sentences.** Bold the identifier, number, file, or verdict word only — a fully bolded sentence highlights nothing.
+- **Budget: ≤10 lines** for a status, answer, or finding. Tables and code fences are exempt but must carry the payload, not decorate it. Longer than that, write it to a file (or use the `report` skill) and hand over the path.
+- **Never re-send a report already delivered.** Say "sent above" plus the delta only.
+- Facts, file paths, numbers, and caveats are never dropped for brevity — cut the surrounding prose, not them.
+
 ## Pillar 1 — Memory
 
 Harness6 provides two complementary forms of memory. RAG memory uses `memsearch` to index `docs/` into the Milvus vector database for decision and constraint searches, including glossary lookups, fact checks, and how-to questions. Temporal memory uses Graphiti through the `memory` MCP server and the `agentic-memory-read` and `agentic-memory-write` skills to preserve ambient progress-state between sessions.
