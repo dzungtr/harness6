@@ -51,7 +51,10 @@ Concretely:
    memory infra is shared across projects): `owner/repo` (project) · `owner/repo#<parent>` (epic)
    · `owner/repo#<sub-issue>` (ticket) — resolved deterministically from the git remote plus
    branch/PR/task-brief, used directly as the Graphiti `group_id`. Readable form now; rename
-   fragility is an accepted trade-off. Not revisited in this ADR: rename-proof node-ID scope keys.
+   fragility is an accepted trade-off. Not revisited in this ADR: rename-proof node-ID scope keys. A fourth key, `owner/repo#adr-<NNNN>`
+   (ADR scope), sits **outside** this GitHub work hierarchy — it's keyed to an ADR file, not an
+   issue, and fires on ADR amendment rather than ticket progress (see
+   `skills/agentic-memory-write/SKILL.md`).
 4. **Write narrow, read wide (downward).** Writes always go to the most-specific scope (usually a
    single ticket). Reads widen downward only: a ticket cold-start queries just that ticket; an
    epic cold-start enumerates child sub-issues live via `gh` and queries the epic plus all
@@ -64,7 +67,9 @@ Concretely:
 6. **Staleness** relies on resolution being a first-class write event (a superseding note that
    names what it resolves, letting Graphiti's bi-temporal extraction age out the stale state) plus
    read-time reconciliation against live GitHub issue open/closed status. An automated
-   GitHub-events ingester is deferred.
+   GitHub-events ingester is deferred. ADR scope is exempt from both halves of this:
+   there's no GitHub issue to reconcile against, and amendment history is durable by design, so it
+   never ages out.
 7. **Three homes, one boundary:** ADR (architectural *why*) / GitHub Issues (*what/whether*,
    system of record) / Memory (tacit catch-net, non-authoritative). Memory never substitutes for
    ticket or ADR hygiene — if a fact should update or close a ticket, update the ticket; a real
@@ -87,3 +92,12 @@ Concretely:
 ## Measured results
 
 _(Left empty — filled in at initiative close, per this repo's design-session convention.)_
+
+## Amendments
+
+_Pointers only — current decision above. Full rationale in temporal memory (ADR scope);
+fallback `git log -p` on this file._
+
+| Date | PR | Change |
+|---|---|---|
+| 2026-08-24 | #31 | Add ADR scope as a fourth memory scope key (§3), outside the GitHub work hierarchy; exempt it from GitHub-status reconciliation and aging-out (§6). |
