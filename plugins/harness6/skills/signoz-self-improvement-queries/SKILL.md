@@ -1,5 +1,5 @@
 ---
-name: self-improvement
+name: signoz-self-improvement-queries
 description: Use when conversations involve self-improvement topics — permission friction, slow tool responses, high token usage, cache efficiency, recurring workflow patterns, or session cadence — queried from SigNoz via the cc-observability MCP server.
 ---
 
