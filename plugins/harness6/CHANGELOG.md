@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.6] - 2026-08-24
+
+Patch release bumping the harness6 plugin version to 0.3.6.
+
+### Changed
+
+- **`self-improvement` skill replaced with the richer signoz recipe set** — the skill body now matches the global `signoz-self-improvement-queries` skill (five verified query recipes: permission friction, slow tools, token/cache usage, workflow patterns, session cadence, plus a "Common Mistakes" section) instead of the original workflow-table version. Frontmatter `name` stays `self-improvement` so existing references (`harness6:self-improvement`) keep working.
+- **Plugin version bump** — `plugins/harness6` manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`), `hooks/validate.py` `EXPECTED_VERSION`, and the marketplace plugin entry bumped to `0.3.6`.
+
 ## [0.3.5] - 2026-08-24
 
 Patch release bumping the harness6 plugin version to 0.3.5.

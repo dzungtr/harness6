@@ -1,109 +1,152 @@
 ---
 name: self-improvement
-description: Use when conversations involve self-improvement topics — permission friction, slow tool responses, high token usage, cache efficiency, or recurring workflow patterns. Pulls real behavioral data from the cc-observability MCP instead of guessing.
+description: Use when conversations involve self-improvement topics — permission friction, slow tool responses, high token usage, cache efficiency, recurring workflow patterns, or session cadence — queried from SigNoz via the cc-observability MCP server.
 ---
 
-# Self-Improvement
+# SigNoz Self-Improvement Queries
 
-Claude Code exports span-level telemetry to SigNoz. Use the `cc-observability` MCP tools to ground self-improvement discussions in real data rather than assumptions.
+## Overview
 
-## When to use this skill
+Claude Code emits every turn as `service.name = 'claude-code'` trace spans —
+five span names cover the whole self-improvement surface: `claude_code.interaction`
+(one user→Claude turn), `claude_code.llm_request` (one LLM API call),
+`claude_code.tool` (tool invocation wrapper), `claude_code.tool.execution`
+(actual tool execution), and `claude_code.tool.blocked_on_user` (permission
+gate — shown to the user or auto-approved). All five recipes below use
+`signoz_aggregate_traces` against this one service; no metrics or logs signal
+is needed.
 
-| Situation | What to query |
-|---|---|
-| "Keep getting permission prompts for X" | Count of `claude_code.tool.blocked_on_user` spans |
-| "Sessions feel slow" | p50/p90 duration by span name |
-| "Want to understand tool usage patterns" | Count by span name, optionally grouped over time |
-| "How active have my sessions been?" | Paginated interaction span rows |
-
-## Span reference
-
-| Span name | What it represents |
-|---|---|
-| `claude_code.interaction` | One user→Claude turn (duration = wall time for that turn) |
-| `claude_code.llm_request` | One LLM API call (latency, model, tokens in attributes) |
-| `claude_code.tool` | Tool invocation wrapper |
-| `claude_code.tool.execution` | Actual tool execution (subprocess, file I/O, etc.) |
-| `claude_code.tool.blocked_on_user` | Permission gate — auto-approved or shown to the user |
-
-## Query workflow
-
-Always pass the user's original question as `searchContext`. Use a relative `timeRange` such as `24h` or `7d` unless the user supplies an exact window.
-
-### Discover fields first
-
-Before filtering on an unfamiliar attribute, call `signoz_get_field_keys` with `signal: "traces"` and a focused `searchText`. Confirm candidate values with `signoz_get_field_values`, passing `signal: "traces"`, the field `name`, and `fieldContext` when the same key exists in multiple contexts.
-
-### Session activity
-
-Call `signoz_search_traces` with:
+## Prerequisite: confirm attribute names
 
 ```json
-{
-  "searchContext": "How active have my sessions been?",
-  "operation": "claude_code.interaction",
-  "timeRange": "7d",
-  "limit": "100",
-  "offset": "0"
-}
+{ "signal": "traces", "fieldContext": "attribute", "searchText": "tool" }
+{ "signal": "traces", "fieldContext": "attribute", "searchText": "token" }
 ```
 
-The result is paginated span rows. Increase `offset` by `limit` until the requested window is covered or a page contains fewer rows than the limit.
+via `signoz_get_field_keys` — confirms `tool_name` / `decision` (string) and
+`cache_read_tokens` / `cache_creation_tokens` / `input_tokens` / `output_tokens`
+(number) exist as attributes before filtering or aggregating on them.
 
-### Activity by span type
+## Recipe 1: permission friction — "keep getting permission prompts for X"
 
-Call `signoz_aggregate_traces` three times with `groupBy: "name"`: once with `aggregation: "count"`, then with `aggregation: "p50"` and `aggregation: "p90"` plus `aggregateOn: "duration_nano"`. Keep the same time range and filters across all three calls.
-
-```json
-{
-  "searchContext": "Show activity and latency by span type",
-  "aggregation": "p90",
-  "aggregateOn": "duration_nano",
-  "groupBy": "name",
-  "timeRange": "7d",
-  "limit": "100"
-}
-```
-
-### Permission pressure
-
-Call `signoz_aggregate_traces` with `aggregation: "count"` and `operation: "claude_code.tool.blocked_on_user"`. Compare that count with a second count using `operation: "claude_code.tool"` over the same time range.
+Count of `claude_code.tool.blocked_on_user` spans, optionally broken down by
+`decision` (`accept` / `reject` / `unknown`):
 
 ```json
 {
-  "searchContext": "How often am I blocked on permission prompts?",
   "aggregation": "count",
-  "operation": "claude_code.tool.blocked_on_user",
+  "groupBy": "decision",
+  "filter": "service.name = 'claude-code' AND name = 'claude_code.tool.blocked_on_user'",
   "timeRange": "7d"
 }
 ```
 
-### Full trace inspection
+**Verified result** (2026-07-21, 7d window): 5957 `accept` / 1664 `unknown` /
+57 `reject` — 7678 total gate hits against 31k total spans scanned.
 
-Use a `trace_id` returned by `signoz_search_traces` with `signoz_get_trace_details`. Set `includeSpans: true` and use a `timeRange` that includes the original result.
+Compare that total against a plain count of `claude_code.tool` spans in the
+same window to get a friction ratio (gate hits ÷ total tool calls).
+
+## Recipe 2: slow tool responses — "sessions feel slow"
+
+p50/p90 latency by span name, one call:
 
 ```json
 {
-  "searchContext": "Inspect the slow interaction in detail",
-  "traceId": "<trace_id>",
-  "timeRange": "24h",
-  "includeSpans": true
+  "aggregation": "p90",
+  "aggregateOn": "duration_nano",
+  "groupBy": "name",
+  "filter": "service.name = 'claude-code'",
+  "timeRange": "7d"
 }
 ```
 
-## Interpreting results
+**Verified result** (2026-07-21, 7d window, p90 in seconds): `claude_code.interaction`
+337.5s, `claude_code.llm_request` 20.5s, `claude_code.tool` 9.3s,
+`claude_code.tool.execution` 3.8s, `claude_code.tool.blocked_on_user` 3.2s.
+`duration_nano` is nanoseconds — divide by 1e9. The gap between
+`claude_code.tool` and `claude_code.tool.execution` is time spent waiting on
+the permission gate, same read as the old Langfuse recipe.
 
-**Permission friction**: A high blocked-on-user count relative to tool invocations means many tools reach the permission gate. Inspect representative traces to identify tool names and approval outcomes before recommending allow-list changes.
+## Recipe 3: token usage & cache efficiency
 
-**Slow tools**: p90 `duration_nano` on `claude_code.tool.execution` above two seconds warrants investigation. Compare it with `claude_code.tool`; the difference can indicate permission wait or wrapper overhead.
+Sum (or avg) over `claude_code.llm_request` spans:
 
-**Token and cache data**: Token counts (`input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_creation_tokens`) are attributes on `claude_code.llm_request` spans. Discover their exact field keys first, then inspect representative traces for per-session breakdowns.
+```json
+{
+  "aggregation": "sum",
+  "aggregateOn": "cache_read_tokens",
+  "filter": "service.name = 'claude-code' AND name = 'claude_code.llm_request'",
+  "timeRange": "7d"
+}
+```
 
-**Session cadence**: Interaction spans represent user→Claude turns. Group conversations using the `session.id` attribute rather than assuming one trace equals one complete conversation.
+Swap `aggregateOn` for `cache_creation_tokens`, `input_tokens`, or
+`output_tokens` for the other breakdowns. **Verified result** (2026-07-21, 7d
+window): `sum(cache_read_tokens)` = 1,022,615,679.
 
-## Notes
+This is the **Claude Code side** of token accounting (per-turn, from the
+agent's own perspective) — distinct from `skills/signoz-token-cost-queries`,
+which reads `gen_ai.usage.*` / `gen_ai.cost.*` off the **LiteLLM gateway
+side** (`service.name = 'litellm'`, per-request, with dollar cost attached).
+Use this recipe for "how much is Claude Code itself using/caching"; use the
+token-cost skill for "what is this costing".
 
-- Prefer one focused query over multiple overlapping calls.
-- Use `requestType: "time_series"` only for spikes, trends, or changes over time; scalar is the default for totals and ranked tables.
-- Durations use nanoseconds; two seconds is `2000000000`.
-- Use the `webUrl` returned by the MCP when linking to SigNoz. Do not construct UI URLs manually.
+## Recipe 4: recurring workflow patterns — "understand tool usage"
+
+Count grouped by tool, ordered by frequency:
+
+```json
+{
+  "aggregation": "count",
+  "groupBy": "tool_name",
+  "filter": "service.name = 'claude-code' AND name = 'claude_code.tool'",
+  "timeRange": "7d"
+}
+```
+
+**Verified result** (2026-07-21, 7d window, top 5): `Bash` 4953, `Read` 841,
+`Edit` 414, `ToolSearch` 221, `Write` 196.
+
+## Recipe 5: session cadence — "how active have my sessions been?"
+
+Distinct session count over a window:
+
+```json
+{
+  "aggregation": "count_distinct",
+  "aggregateOn": "session.id",
+  "filter": "service.name = 'claude-code'",
+  "timeRange": "7d"
+}
+```
+
+**Verified result** (2026-07-21, 7d window): 102 distinct sessions. Set
+`requestType: "time_series"` with `stepInterval: 86400` on the same query for
+a per-day trend instead of a single total (verified: returned one distinct
+count per day over the window). To drill into one specific session's full
+span list, use `skills/signoz-session-lookback-queries` instead — this
+recipe only answers "how many/how often", not "what happened in session X".
+
+## Common Mistakes
+
+- **`tool_name` is null on `blocked_on_user` spans.** Confirmed live: adding
+  `AND tool_name EXISTS` to the Recipe 1 filter returns zero rows. The
+  permission gate span carries `decision` but not which tool triggered it —
+  there's no attribute-level join available through these tools to recover
+  per-tool gate-hit counts; `decision`-only breakdown is what's available.
+- **`duration_nano` is nanoseconds, not milliseconds.** Divide by `1e9` for
+  seconds (or `1e6` for ms) when reading latency aggregations.
+- **`filter` must be a query-builder expression string**, not a bare object —
+  same gotcha as `skills/signoz-token-cost-queries` and
+  `skills/signoz-session-lookback-queries`.
+- **Don't confuse Claude-Code-side token attributes with LiteLLM-side
+  `gen_ai.*` attributes** — they're on different services (`claude-code` vs
+  `litellm`) and answer different questions (agent-perspective usage vs
+  gateway-perspective cost). See Recipe 3.
+- **`cc-observability` needs a one-time human approval** before any
+  session — including a headless/background agent — can use its tools.
+  `claude mcp list` shows `⏸ Pending approval` until a human interactively
+  approves it once; this is a deliberate Claude Code trust control, not a
+  bug. If you hit this, stop and surface it to the user. Do not attempt to
+  self-approve or register a workaround — that defeats the control's purpose.

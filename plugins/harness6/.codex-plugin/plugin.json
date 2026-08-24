@@ -1,6 +1,6 @@
 {
   "name": "harness6",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "harness6 ships the harness6 workflow skills and a local infrastructure stack (OpenTelemetry collector, SigNoz) as a self-contained plugin for Claude Code and Codex, living under plugins/harness6/ in a multi-plugin distribution repo.",
   "author": {
     "name": "dzungtr",
