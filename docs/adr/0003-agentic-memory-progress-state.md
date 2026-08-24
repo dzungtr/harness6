@@ -100,4 +100,4 @@ fallback `git log -p` on this file._
 
 | Date | PR | Change |
 |---|---|---|
-| 2026-08-24 | #TBD | Add ADR scope as a fourth memory scope key (§3), outside the GitHub work hierarchy; exempt it from GitHub-status reconciliation and aging-out (§6). |
+| 2026-08-24 | #31 | Add ADR scope as a fourth memory scope key (§3), outside the GitHub work hierarchy; exempt it from GitHub-status reconciliation and aging-out (§6). |
