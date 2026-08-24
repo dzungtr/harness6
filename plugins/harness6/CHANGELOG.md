@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.5] - 2026-08-24
+
+Patch release bumping the harness6 plugin version to 0.3.5.
+
+### Added
+
+- **ADR scope for agentic memory** — a fourth `agentic-memory-write`/`agentic-memory-read` scope key, `owner_repo_adr_<NNNN>`, for ADR-amendment rationale that sits outside the GitHub issue/epic/project hierarchy and is exempt from status reconciliation and aging-out.
+- **`docs/ADR-FORMAT.md`** — tracked reference for this repo's ADR format and amendment convention (present-tense snapshot body, `## Amendments` pointer table, dead approaches as standing prohibitions).
+
+### Changed
+
+- **Plugin version bump** — `plugins/harness6` manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`), `hooks/validate.py` `EXPECTED_VERSION`, and the marketplace plugin entry bumped to `0.3.5`. No functional behaviour change beyond the additions above.
+
 ## [0.3.4] - 2026-08-23
 
 Patch release updating the `autobot` skill's post-merge flow, the `design-session` skill's frontmatter, and the bundled plugin version.
