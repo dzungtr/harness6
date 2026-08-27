@@ -68,24 +68,59 @@ services:
       - etcd
       - milvus-minio
 
+  # Neo4j backs the Graphiti temporal knowledge-graph memory layer below.
+  # Supersedes the FalkorDB combined-container setup: FalkorDB's bundled start
+  # script only had RDB snapshotting, and safely turning AOF on after the fact
+  # would mean reimplementing upstream's start script inline in this compose
+  # file — a maintenance liability on every future image bump. Neo4j's
+  # transaction log fsyncs on every commit by default, so no persistence flag
+  # or startup-script patch is needed. Community edition (no
+  # NEO4J_ACCEPT_LICENSE_AGREEMENT needed) is sufficient for this dataset's
+  # size (single-digit MB, low write volume).
+  #
+  # NEO4J_PASSWORD must be at least 8 characters — Neo4j refuses to boot with
+  # anything shorter for NEO4J_AUTH.
+  neo4j:
+    image: neo4j:5.26-community
+    container_name: mem-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set (min 8 chars)}
+    volumes:
+      - neo4j_data:/data
+    ports:
+      # Neo4j Browser UI (optional, for inspecting the graph by hand). Bolt
+      # (7687) is intentionally not published — only graphiti-mcp, in the
+      # same compose network, needs it.
+      - "${NEO4J_BROWSER_PORT:-7475}:7474"
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$NEO4J_PASSWORD\" 'RETURN 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   # Graphiti temporal knowledge-graph memory layer, exposed as the `memory`
-  # MCP server (see skills/agentic-memory-read/SKILL.md). Uses the upstream
-  # combined container (FalkorDB + MCP server bundled together) rather than
-  # separate `falkordb` + `graphiti-mcp` services — see docs/adr/0005 and
-  # infrastructure/config.yaml for the entity-type schema this reads.
+  # MCP server (see skills/agentic-memory-read/SKILL.md). Uses the `standalone`
+  # image tag (MCP server only, no bundled FalkorDB) against the separate
+  # `neo4j` service above — see infrastructure/config.yaml for the
+  # entity-type schema this reads.
   #
   # LLM extraction + embeddings call the OpenAI-compatible endpoints supplied
   # through infrastructure/.env; no model gateway runs in this stack.
   graphiti-mcp:
-    image: zepai/knowledge-graph-mcp:1.0.2
+    image: zepai/knowledge-graph-mcp:1.0.2-standalone
     container_name: mem-graphiti-mcp
     restart: unless-stopped
+    depends_on:
+      neo4j:
+        condition: service_healthy
     environment:
-      # --- FalkorDB (bundled in this same container) ---
-      FALKORDB_PASSWORD: ${FALKORDB_PASSWORD:-}
-      BROWSER: ${FALKORDB_BROWSER_ENABLED:-1} # 1 = enable FalkorDB Browser UI, 0 = disable
-      FALKORDB_URI: redis://localhost:6379 # internal — combined container talks to itself
-      FALKORDB_DATABASE: ${FALKORDB_DATABASE:-default_db}
+      # --- Neo4j (separate service above) ---
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set (min 8 chars)}
+      NEO4J_DATABASE: ${NEO4J_DATABASE:-neo4j}
 
       # --- Graphiti graph namespace ---
       # Per-call group_id (see skills/agentic-memory-read/SKILL.md) overrides this default;
@@ -115,24 +150,20 @@ services:
 
       # --- points the server at our entity-type config below ---
       CONFIG_PATH: /app/mcp/config/config.yaml
-      PATH: /root/.local/bin:${PATH}
     volumes:
-      - falkordb_data:/var/lib/falkordb/data
-      - mcp_logs:/var/log/graphiti
       # Overrides the image's baked-in config.yaml. We register only the upstream
       # built-in entity types and rely on scope+recency retrieval + Graphiti's
       # bi-temporal invalidation — no custom decision schema (see docs/adr/0005).
+      # database.provider is set to "neo4j" here, matching the service above.
       - ./config.yaml:/app/mcp/config/config.yaml:ro,z
     ports:
       - "${GRAPHITI_MCP_HTTP_PORT:-8121}:8000" # MCP HTTP endpoint at /mcp/
-      - "${FALKORDB_REDIS_PORT:-6380}:6379" # FalkorDB/Redis
-      - "${FALKORDB_BROWSER_PORT:-3010}:3000" # FalkorDB browser UI (optional)
     extra_hosts:
       # Lets EMBEDDER_API_URL point at a local Ollama on the host (e.g.
       # http://host.docker.internal:11434/v1); not needed for cloud providers.
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -347,9 +378,7 @@ services:
       - "127.0.0.1:${SIGNOZ_OTLP_HTTP_PORT:-4318}:4318" # OTLP HTTP receiver
 
 volumes:
-  falkordb_data:
-    driver: local
-  mcp_logs:
+  neo4j_data:
     driver: local
   signoz_clickhouse_data:
     driver: local
