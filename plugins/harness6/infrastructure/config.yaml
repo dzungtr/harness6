@@ -92,14 +92,12 @@ embedder:
       model: "voyage-3"
 
 database:
-  provider: "falkordb" # Default: falkordb. Options: neo4j, falkordb
+  # Neo4j (separate service, see docker-compose.yml) — switched from FalkorDB
+  # because Neo4j's transaction log fsyncs on every commit by default, with
+  # no persistence flag or startup-script patch needed to make it durable.
+  provider: "neo4j"
 
   providers:
-    falkordb:
-      uri: ${FALKORDB_URI:redis://localhost:6379}
-      password: ${FALKORDB_PASSWORD:}
-      database: ${FALKORDB_DATABASE:default_db}
-
     neo4j:
       uri: ${NEO4J_URI:bolt://localhost:7687}
       username: ${NEO4J_USER:neo4j}
