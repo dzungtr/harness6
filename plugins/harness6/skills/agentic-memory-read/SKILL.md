@@ -29,6 +29,10 @@ projects):
 - **Project scope** — `owner_repo`. Derive from the git remote: `gh repo view --json
   nameWithOwner -q .nameWithOwner`, or parse `git remote get-url origin` if `gh` isn't
   available.
+- **Normalize every component** before joining: replace any `-`, `.`, `#`, or whitespace
+  inside the owner and repo names with `_`, then lowercase. E.g. `acme-org/payments-service`
+  → `acme_org_payments_service`; `dzungtr/harness6` → `dzungtr_harness6`. The result must
+  contain no character other than `[a-z0-9_]` and `<issue>`/`<NNNN>` digits.
 - **Epic/ticket scope** — `owner_repo_<issue>`. Append the issue number resolved from (in
   order of preference) the current branch name, the open PR for the branch, or the task brief
   you were given.
@@ -38,9 +42,9 @@ These scope keys are used directly as the Graphiti `group_id`, underscore-joined
 two rounds of live verification against the `mem-graphiti-mcp` container
 (zepai/knowledge-graph-mcp, FalkorDB-backed):
 
-1. **2026-07-14, round 1** — slash/hash-joined group_ids (e.g. `oolio-group/oolio-one-gitops`
-   or `oolio-group/oolio-one-gitops#424`) make FalkorDB's RediSearch full-text index throw
-   `RediSearch: Syntax error at offset 17 near oolio` on group_ids containing `/` or `#`. Only
+1. **2026-07-14, round 1** — slash/hash-joined group_ids (e.g. `acme-org/payments-service`
+   or `acme-org/payments-service#424`) make FalkorDB's RediSearch full-text index throw
+   `RediSearch: Syntax error at offset 17` on group_ids containing `/` or `#`. Only
    `search_nodes`/`search_memory_facts` surface that error directly — `get_episodes` silently
    returns empty for the same group_id instead, so the failure mode is easy to miss. The fix
    at the time was to switch to dash-joined (`owner-repo`, `owner-repo-<issue>`).

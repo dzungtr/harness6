@@ -63,7 +63,7 @@ class ValidateFailureTests(unittest.TestCase):
     verifies the relevant check goes FAIL.
 
     Tests use ``_copy_plugin_normalized`` which first applies the current
-    expected manifests state (version 0.3.3 + hooks field) before breaking
+    expected manifests state (version 0.3.4 + hooks field) before breaking
     a single precondition. That isolates the assertion: exactly one check
     fails per test.
     """
