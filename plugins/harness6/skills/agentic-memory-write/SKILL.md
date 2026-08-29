@@ -33,6 +33,10 @@ Write at these events only — not on every step, and not only at session end:
   reflected in the ticket.
 - **Resolution** — a previously-noted blocker or drift is now cleared. This is a first-class
   event, not an afterthought — see "Resolution as event" below.
+- **ADR amended** — an ADR's `## Decision` or `## Considered Options` section changed. Write
+  the full rationale deliberately kept OUT of the ADR file itself: what was believed before,
+  what changed it (evidence, incident, PR), and why the new decision is correct. See "ADR
+  scope" below — this is still standup-prose, not a typed shape.
 
 ## Content model: standup prose, coverage not schema
 
@@ -76,6 +80,11 @@ Write to your **most-specific** scope:
 - Genuinely cross-ticket note (affects the whole epic, not one child) → the epic scope,
   `owner_repo_<epic>`.
 - Orphan/ad-hoc work with no issue → project scope, `owner_repo`.
+- Amending an ADR → the ADR scope, `owner_repo_adr_<NNNN>`, derived from the ADR filename
+  (`docs/adr/NNNN-slug.md`) plus the git remote, using the same joining rule as above.
+  Example: `dzungtr/harness6` + ADR 0003 → `dzungtr_harness6_adr_0003`. This scope sits
+  **outside** the GitHub work hierarchy the other three keys are built on — see "ADR scope"
+  below.
 
 `group_id` must be underscore-joined, not slash/hash-joined and not dash-joined either.
 Normalize **every component** before joining: replace any `-`, `.`, `#`, or whitespace inside
@@ -107,6 +116,18 @@ resolves**, e.g.:
 Naming the prior state explicitly gives Graphiti's bi-temporal extraction what it needs to
 recognize the contradiction and age out (invalidate, not delete) the stale note — don't rely
 on a terse "fixed" with no reference to what it fixes.
+
+## ADR scope
+
+Episode naming follows the same convention as any other write, e.g. `"Amendment: ADR-0003
+group_id normalization fix"`. The episode body is still standup-prose — where it stood,
+what changed it, why the new decision is correct — never a typed `Decision`/`Outcome`/
+`SUPERSEDES` shape.
+
+ADR-scope episodes are not ticket-scoped: unlike the other three scopes, never reconcile them
+against a GitHub issue's open/closed status (there usually isn't one), and never age them out.
+Amendment history is durable by design — it's the whole reason this trigger exists — so the
+"Resolution as event" aging-out mechanism above doesn't apply here.
 
 ## `add_memory` call
 

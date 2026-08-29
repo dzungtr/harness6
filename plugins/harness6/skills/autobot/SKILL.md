@@ -26,7 +26,7 @@ The main session is a pure orchestrator:
 ## Models
 
 - Design sessions, architecture sessions, review/merge: the highest-capability available model.
-- Implementers, results promotion, scope-review: the default implementation model.
+- Implementers, scope-review: the default implementation model.
 - All subagents: `run_in_background: true`, work-describing names (`design-<slug>`, `impl-<slug>-<issue#>`, `review-pr-<n>`), and `isolation: "worktree"` for anything that edits files.
 
 ## The loop
@@ -43,11 +43,14 @@ The main session is a pure orchestrator:
 
 5. **Implementation dispatch.** One implementer using the default implementation model per **unblocked** slice issue, up to 3 concurrent, each in its own worktree. The prompt is the issue URL + its agent brief. The implementer implements, tests, opens a PR whose body contains `Closes #<slice-issue>`, and returns the PR URL. Dependents become eligible only when their blocker's PR merges.
 
-6. **Review & merge.** Fresh reviewer using the highest-capability available model per PR — never the implementer reviewing its own work. Hard merge gates, all three required: **CI green + acceptance criteria met + no unresolved review findings.** The reviewer inspects the actual diff for over-editing beyond the brief's scope — never trusts the implementer's self-report. Findings go back to an implementer agent on the same branch; **max 2 fix rounds** (a post-merge "rebase on main" instruction is round zero and doesn't count). Still failing after round 2 → label the issue `ready-for-human`, comment the outstanding findings, leave the PR open, move on. Merge follows the repo convention (default squash); delete the branch and clean up the worktree. **Reindex after merge:** if the repo has a `.memsearch.toml` at its root and the merged PR touched any path it lists under `paths`, dispatch a the default implementation model subagent to run `/memsearch-index` so the semantic index reflects the merged docs — then continue without waiting. If the memsearch backend is unreachable (e.g. Milvus down), do not block the loop: label the epic node `ready-for-human` with a note that a reindex is owed, and move on. This applies equally to the docs PRs merged in step 7.
+6. **Review & merge.** Fresh reviewer using the highest-capability available model per PR — never the implementer reviewing its own work. Hard merge gates, all three required: **CI green + acceptance criteria met + no unresolved review findings.** The reviewer inspects the actual diff for over-editing beyond the brief's scope — never trusts the implementer's self-report. Findings go back to an implementer agent on the same branch; **max 2 fix rounds** (a post-merge "rebase on main" instruction is round zero and doesn't count). Still failing after round 2 → label the issue `ready-for-human`, comment the outstanding findings, leave the PR open, move on. Merge follows the repo convention (default squash), then run the **post-merge cleanup** routine:
+  - **Sync the main workspace:** pull the local main workspace (`git pull` at the repo root) so it reflects the just-merged commit — never merge into a feature branch.
+  - **Tear down the worktree:** remove the merged PR's worktree and delete its branch (`git worktree remove` + branch delete) so no stale checkouts linger.
+  - **Reindex on docs change:** if the repo has a `.memsearch.toml` at its root and the merged PR touched any path it lists under `paths`, dispatch a default implementation model subagent to run `/memsearch-index` so the semantic index reflects the merged docs — then continue without waiting. If the memsearch backend is unreachable (e.g. Milvus down), do not block the loop: label the epic node `ready-for-human` with a note that a reindex is owed, and move on.
 
-7. **Results promotion.** When all children of a PRD issue are merged, spawn a subagent using the default implementation model to promote the PRD's filled Results section into the ADR "Measured results" stub via a docs PR (same review gate as step 6, including the post-merge reindex), then close the PRD issue.
+This applies equally to the docs PRs raised in step 2.
 
-8. **Done.** The run is complete when every node is terminal — closed-by-merge or `ready-for-human`. Post a final report on the epic: merged PRs, flagged items with reasons, results promoted. Close the epic **only if there are zero `ready-for-human` leftovers**; otherwise leave it open with the dashboard showing the remaining human work.
+7. **Done.** The run is complete when every node is terminal — closed-by-merge or `ready-for-human`. Post a final report on the epic: merged PRs and flagged items with reasons. Close the epic **only if there are zero `ready-for-human` leftovers**; otherwise leave it open with the dashboard showing the remaining human work.
 
 ## Concurrency
 

@@ -1,8 +1,35 @@
 # Changelog
 
-## Unreleased
+## [0.3.5] - 2026-08-24
 
-## [0.3.4] - 2026-08-29
+Patch release bumping the harness6 plugin version to 0.3.5.
+
+### Added
+
+- **ADR scope for agentic memory** — a fourth `agentic-memory-write`/`agentic-memory-read` scope key, `owner_repo_adr_<NNNN>`, for ADR-amendment rationale that sits outside the GitHub issue/epic/project hierarchy and is exempt from status reconciliation and aging-out.
+- **`docs/ADR-FORMAT.md`** — tracked reference for this repo's ADR format and amendment convention (present-tense snapshot body, `## Amendments` pointer table, dead approaches as standing prohibitions).
+
+### Changed
+
+- **Plugin version bump** — `plugins/harness6` manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`), `hooks/validate.py` `EXPECTED_VERSION`, and the marketplace plugin entry bumped to `0.3.5`. No functional behaviour change beyond the additions above.
+
+## [0.3.4] - 2026-08-23
+
+Patch release updating the `autobot` skill's post-merge flow, the `design-session` skill's frontmatter, and the bundled plugin version.
+
+### Added
+
+- **autobot post-merge cleanup** — after a PR merges, the main session now pulls the local main workspace up to date, tears down the merged PR's worktree (and deletes its branch), and triggers `/memsearch-index` when the merged PR touched a path listed in `.memsearch.toml`.
+
+### Removed
+
+- **autobot results promotion step** — dropped the standalone "Results promotion" loop step (formerly step 7); results are no longer promoted into ADR stubs via a separate docs PR.
+
+### Fixed
+
+- **design-session frontmatter** — quoted the `description` field so the embedded `SKIP for:` colon no longer breaks YAML parsing (`mapping values are not allowed in this context`).
+
+## [0.3.6] - 2026-08-29
 
 Patch release fixing the agentic-memory group_id normalization spec and scrubbing
 third-party organization references.
@@ -18,7 +45,7 @@ third-party organization references.
 - **Third-party reference scrub** — replaced `oolio-group/oolio-one-gitops` and
   `oolio-one/sandbox` examples in the memory skills and hook reference with generic
   placeholders (`acme-org/payments-service`).
-- **Plugin version bump** — `0.3.3` → `0.3.4` across `.claude-plugin/plugin.json`,
+- **Plugin version bump** — `0.3.5` → `0.3.6` across `.claude-plugin/plugin.json`,
   `.codex-plugin/plugin.json`, `hooks/validate.py`, `hooks/test_validate.py`, and the
   marketplace plugin entry.
 

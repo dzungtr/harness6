@@ -78,6 +78,15 @@ reverse isn't needed because writes always go to the most-specific scope (see
 3. **Project cold-start** (no specific issue — ad-hoc/orphan work, or scanning what's active):
    query your own project-scope notes (`owner_repo`) plus a bounded index of active epics.
    Never recursively dump every epic's every child — that defeats "bounded."
+4. **ADR read** (you're reading an ADR that has an `## Amendments` section): derive the ADR
+   scope group_id — `owner_repo_adr_<NNNN>`, per `agentic-memory-write`'s "Write scope" — and
+   query it before acting on, or re-amending, that ADR. The Amendments table's presence is the
+   signal that expandable history exists in memory; an ADR with no such section has none to
+   fetch.
+5. **Rejected-option check** (you're about to propose something an ADR's
+   `## Considered Options` already marks rejected): query that ADR's scope for the full
+   reasoning before reviving it — the ADR body only carries the terse standing prohibition and
+   its evidence, not the whole story.
 
 ## Read-time reconciliation
 

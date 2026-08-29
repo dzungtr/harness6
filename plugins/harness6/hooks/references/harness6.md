@@ -8,6 +8,52 @@ This file organises agent instructions around the five pillars of harness infras
 4. Environment — give agents a short, observable feedback loop for their changes.
 5. Agent Observability — use telemetry to improve agent behaviour over time.
 
+## Response style
+
+Every response to the human in the main session follows a fixed structure. Subagent-to-parent reports are exempt.
+
+- **Verdict first.** Line 1 is the answer, outcome, or headline — bolded, ≤15 words. No lead-in ("Good —", "All four recorded", "Report is ready"), no meta-narration about the message itself.
+- **Action block second, never last.** Anything needing a decision, approval, or a command the human must run goes immediately under the verdict, prefixed `**→ ACTION:**` or `**→ RECOMMEND:**`, one line each. Never bury the ask in a closing paragraph or a trailing "Want me to …?".
+- **Explanation as bullets.** ~15 words per bullet, one claim each. No running paragraphs, no em-dash chains stacking three clauses. A second sentence becomes a second bullet.
+- **Bold keywords, not sentences.** Bold the identifier, number, file, or verdict word only — a fully bolded sentence highlights nothing.
+- **Budget: ≤10 lines** for a status, answer, or finding. Tables and code fences are exempt but must carry the payload, not decorate it. Longer than that, write it to a file (or use the `report` skill) and hand over the path.
+- **Never re-send a report already delivered.** Say "sent above" plus the delta only.
+- Facts, file paths, numbers, and caveats are never dropped for brevity — cut the surrounding prose, not them.
+
+## Fact-checking — verify live before asserting
+
+Training data goes stale and recalled facts drift into paraphrase. Any factual claim about a
+system the agent doesn't own gets checked against a live web search **before** it lands in a
+message, a commit, a PR body, or a review reply. Reasoning from memory is the thing being
+replaced here, not supplemented.
+
+**Trigger — check before asserting when the claim is:**
+
+- About a third-party product, API, or spec — versions, pricing, limits, defaults, capabilities.
+- A comparison or a recommendation between options ("X is the right choice for Y").
+- A **rebuttal** — disagreeing with a human, or defending a position under pushback. Re-read
+  their actual words first: fetch the full thread, not just the one comment pointed to, and
+  check the claim they actually made rather than a remembered paraphrase of it.
+- Anything whose truth could have moved since the training cutoff.
+
+**Skip** for: facts about the project's own codebase (grep/memsearch own that), pure logic or
+arithmetic, and anything already verified live earlier in the same session.
+
+**Constructing the search** — search the *claim*, not the topic:
+
+- "r6a is inefficient for k8s workloads" → `r6a.large vCPU memory ratio` — the specific
+  assertion, in the vendor's own vocabulary, not the surrounding subject.
+- Search the **refutation** as well as the confirmation: one query for the claim, one for what
+  would falsify it. A single supporting hit is not verification, it's confirmation bias with a
+  citation stapled on.
+- Before any A-vs-B comparison, run one query that **enumerates the whole option space**
+  (the vendor's full product list, the spec's option table). Never inherit a shortlist from
+  the prompt — a question posed as "A or B" is a hypothesis, not the scope.
+- Time-sensitive claim → constrain freshness so a stale page can't outrank current docs.
+
+Then open the owning primary source before citing it — a snippet is a pointer, not evidence.
+Cite the source inline with the claim so the human can check it.
+
 ## Pillar 1 — Memory
 
 Harness6 provides two complementary forms of memory. RAG memory uses `memsearch` to index `docs/` into the Milvus vector database for decision and constraint searches, including glossary lookups, fact checks, and how-to questions. Temporal memory uses Graphiti through the `memory` MCP server and the `agentic-memory-read` and `agentic-memory-write` skills to preserve ambient progress-state between sessions.
