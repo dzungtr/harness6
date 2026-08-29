@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.6] - 2026-08-24
+
+Patch release bumping the harness6 plugin version to 0.3.6.
+
+### Removed
+
+- **`self-improvement` skill** — removed entirely.
+
+### Added
+
+- **Three signoz query skills**, cloned verbatim (frontmatter and body unchanged) from the global reference skills, replacing `self-improvement`: `signoz-self-improvement-queries` (permission friction, slow tools, token/cache usage, workflow patterns, session cadence), `signoz-session-lookback-queries` (replaying a past session, retrieving untruncated prompt/completion bodies), and `signoz-token-cost-queries` (LiteLLM gateway token usage and cost).
+
+### Changed
+
+- **Plugin version bump** — `plugins/harness6` manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`), `hooks/validate.py` `EXPECTED_VERSION`, and the marketplace plugin entry bumped to `0.3.6`.
+- **`README.md` and `hooks/references/harness6.md`** — updated the skills list and observability-reflection guidance to reference the three new signoz-*-queries skills instead of `self-improvement`.
+
 ## [0.3.5] - 2026-08-24
 
 Patch release bumping the harness6 plugin version to 0.3.5.

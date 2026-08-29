@@ -140,7 +140,7 @@ Agent observability supports self-reflection and behaviour improvement over time
 
 - Coding agents export OpenTelemetry data to the SigNoz backend as established by ADR 0004.
 - The `cc-observability` MCP server gives agents queryable access to telemetry, including traces, metrics, and logs.
-- Use the `self-improvement` skill to ground reflection in observed telemetry rather than guesses.
+- Use the `signoz-self-improvement-queries`, `signoz-session-lookback-queries`, and `signoz-token-cost-queries` skills to ground reflection in observed telemetry rather than guesses.
 - Deliver reflection-driven changes to skills or `CLAUDE.md` as PRs.
 
 ## Pillar 6 Guardrail and constraints sandbox
