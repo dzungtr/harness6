@@ -19,7 +19,7 @@ At the start of any task, extract the **core subject keywords** from the task de
 Keyword extraction examples:
 
 - "Review units against naming convention in ADR 0005" → `naming convention`
-- "Write a naming convention ADR from oolio-one/sandbox stacks" → `naming convention`
+- "Write a naming convention ADR from the sandbox stacks" → `naming convention`
 - "Grill issues #204 & #205 against the domain model" → `domain model`
 - "Fix DynamoDB table names to follow ADR 0005" → `DynamoDB naming convention`
 - "CiliumNetworkPolicy egress for vouchers-service to NATS" → `CiliumNetworkPolicy egress`

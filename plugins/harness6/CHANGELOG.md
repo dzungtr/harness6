@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## [0.3.4] - 2026-08-29
+
+Patch release fixing the agentic-memory group_id normalization spec and scrubbing
+third-party organization references.
+
+### Changed
+
+- **Explicit group_id normalization** — `agentic-memory-read` (Scope resolution) and
+  `agentic-memory-write` (Write scope) now require normalizing every component before
+  joining: replace `-`, `.`, `#`, whitespace with `_` and lowercase, e.g.
+  `acme-org/payments-service` → `acme_org_payments_service`. Previously only the join
+  separator was specified, so owner/repo names containing dashes could yield
+  non-compliant group_ids. Convention matches the project-wide naming rule.
+- **Third-party reference scrub** — replaced `oolio-group/oolio-one-gitops` and
+  `oolio-one/sandbox` examples in the memory skills and hook reference with generic
+  placeholders (`acme-org/payments-service`).
+- **Plugin version bump** — `0.3.3` → `0.3.4` across `.claude-plugin/plugin.json`,
+  `.codex-plugin/plugin.json`, `hooks/validate.py`, `hooks/test_validate.py`, and the
+  marketplace plugin entry.
+
 ## [0.3.3] - 2026-08-23
 
 Patch release bumping the harness6 plugin version to 0.3.3.

@@ -78,8 +78,13 @@ Write to your **most-specific** scope:
 - Orphan/ad-hoc work with no issue → project scope, `owner_repo`.
 
 `group_id` must be underscore-joined, not slash/hash-joined and not dash-joined either.
+Normalize **every component** before joining: replace any `-`, `.`, `#`, or whitespace inside
+the owner/repo names with `_`, then lowercase — e.g. `acme-org/payments-service` →
+`acme_org_payments_service`. The final `group_id` must contain no character other than
+`[a-z0-9_]` plus `<issue>`/`<NNNN>` digits. This matches the project rule "repo `my-repo`
+→ `my_repo`" and `agentic-memory-read`'s "Scope resolution" — keep them identical.
 Slash/hash-joining makes FalkorDB's RediSearch full-text index throw `RediSearch: Syntax
-error at offset 17 near oolio` on group_ids containing `/` or `#` (confirmed 2026-07-14). A
+error at offset 17` on group_ids containing `/` or `#` (confirmed 2026-07-14). A
 first fix moved to dash-joining, but that same day, live testing found dash-joined group_ids
 trip the same class of RediSearch error and hang the write indefinitely instead of failing
 cleanly — reproduced on `tillpos-tony-my-claude`, which never completed (`count(n)` stuck at 0
