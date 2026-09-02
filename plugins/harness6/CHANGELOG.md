@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.7] - 2026-09-02
+
+Patch release bumping the harness6 plugin version to 0.3.7.
+
+### Fixed
+
+- **`references/harness6.md` header** — the intro line and numbered list said "five pillars" and omitted Pillar 6 (Guardrail and constraints sandbox), even though the pillar's own section already existed further down the file. Header now lists all six pillars.
+
+### Changed
+
+- **Plugin version bump** — `plugins/harness6` manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`), `hooks/validate.py` `EXPECTED_VERSION`, and the marketplace plugin entry bumped to `0.3.7`. No functional behaviour change beyond the fix above.
+
 ## [0.3.6] - 2026-08-24
 
 Patch release bumping the harness6 plugin version to 0.3.6.
