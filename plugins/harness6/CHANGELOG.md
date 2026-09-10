@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.8] - 2026-09-10
+
+Patch release fixing a broken plugin load path and bumping the harness6 plugin version to 0.3.8.
+
+### Fixed
+
+- **`.claude-plugin/plugin.json` `hooks` path** — declared `./claude/hooks.json`, which Claude Code resolves relative to the plugin root (`plugins/harness6/`). No `claude/` directory exists there — the real file lives at `hooks/claude/hooks.json` — so Claude Code failed to load the plugin's hooks (and the plugin as a whole). Manifest now points to `./hooks/claude/hooks.json`.
+- **`hooks/validate.py` self-check encoded the same wrong path** — `CLAUDE_HOOK_PATH` and the docstring expected `./claude/hooks.json`, so the validator's `manifest-hooks-field` check passed even though the plugin couldn't actually load in Claude Code. Updated the constant, docstring, and `test_validate.py`'s `EXPECTED_CLAUDE_HOOKS` to the real path.
+
+### Changed
+
+- **Plugin version bump** — `plugins/harness6` manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`), `hooks/validate.py` `EXPECTED_VERSION`, and the marketplace plugin entry bumped to `0.3.8`.
+
 ## [0.3.7] - 2026-09-02
 
 Patch release bumping the harness6 plugin version to 0.3.7.

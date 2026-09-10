@@ -6,10 +6,11 @@ acceptance criteria require, plus plugin-specific checks that the generic
 validator doesn't cover:
 
   1. manifest-version: both `.codex-plugin/plugin.json` and
-     `.claude-plugin/plugin.json` declare version "0.3.7".
-  2. manifest-hooks-field: `.codex-plugin/plugin.json` references
-     `./codex/hooks.json` and `.claude-plugin/plugin.json` references
-     `./claude/hooks.json`.
+     `.claude-plugin/plugin.json` declare version "0.3.8".
+  2. manifest-hooks-field: `.codex-plugin/plugin.json` has no `hooks` field
+     (Codex auto-discovers `hooks/hooks.json`) and `.claude-plugin/plugin.json`
+     references `./hooks/claude/hooks.json`, resolved relative to the plugin
+     root — Claude Code does not add a `hooks/` prefix on its own.
   3. hooks-files-exist: codex/hooks.json, claude/hooks.json, loader.py,
      and references/harness6.md are all present.
   4. hooks-json-valid: both hooks.json files parse as JSON and have the
@@ -35,8 +36,8 @@ import sys
 from pathlib import Path
 from typing import Callable, List, Tuple
 
-EXPECTED_VERSION = "0.3.7"
-CLAUDE_HOOK_PATH = "./claude/hooks.json"
+EXPECTED_VERSION = "0.3.8"
+CLAUDE_HOOK_PATH = "./hooks/claude/hooks.json"
 
 
 def default_plugin_root() -> Path:
