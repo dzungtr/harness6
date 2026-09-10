@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.9] - 2026-09-10
+
+Patch release: the 0.3.8 hooks-path fix didn't actually fix Claude Code loading, because Claude Code auto-loads `hooks/hooks.json` unconditionally — `manifest.hooks` only registers *additional* hook files, it never replaces the canonical one. So `hooks/hooks.json` (still using the Codex-only bare `$PLUGIN_ROOT`, unset under Claude Code) kept loading and erroring on every Claude Code session, alongside the correctly-wired `hooks/claude/hooks.json`, regardless of restarts.
+
+### Fixed
+
+- **`hooks/hooks.json` command** — now resolves the plugin root via `${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}`, so the one file both agents auto-discover works under either. Was bare `$PLUGIN_ROOT`, which Claude Code never sets, expanding to `/hooks/loader.py` and failing with `SessionStart:startup hook error`.
+- **Removed `hooks/claude/hooks.json`** and the `.claude-plugin/plugin.json` `hooks` field that pointed to it — redundant now that the shared file works standalone, and having both meant the `SessionStart` hook fired twice per Claude Code session.
+
+### Changed
+
+- **`hooks/validate.py`** — `manifest-hooks-field` now asserts `.claude-plugin/plugin.json` has *no* `hooks` field (an explicit one would only add a second file); `hooks-json-valid` checks the single `hooks/hooks.json` and requires its command contain the `${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}` fallback, to catch this regression again.
+- **Plugin version bump** — `plugins/harness6` manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`), `hooks/validate.py` `EXPECTED_VERSION`, and the marketplace plugin entry bumped to `0.3.9`.
+
 ## [0.3.8] - 2026-09-10
 
 Patch release fixing a broken plugin load path and bumping the harness6 plugin version to 0.3.8.

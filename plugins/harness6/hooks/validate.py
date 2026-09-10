@@ -6,15 +6,19 @@ acceptance criteria require, plus plugin-specific checks that the generic
 validator doesn't cover:
 
   1. manifest-version: both `.codex-plugin/plugin.json` and
-     `.claude-plugin/plugin.json` declare version "0.3.8".
-  2. manifest-hooks-field: `.codex-plugin/plugin.json` has no `hooks` field
-     (Codex auto-discovers `hooks/hooks.json`) and `.claude-plugin/plugin.json`
-     references `./hooks/claude/hooks.json`, resolved relative to the plugin
-     root — Claude Code does not add a `hooks/` prefix on its own.
-  3. hooks-files-exist: codex/hooks.json, claude/hooks.json, loader.py,
-     and references/harness6.md are all present.
-  4. hooks-json-valid: both hooks.json files parse as JSON and have the
-     right `hooks.SessionStart` shape.
+     `.claude-plugin/plugin.json` declare version "0.3.9".
+  2. manifest-hooks-field: `.claude-plugin/plugin.json` has no `hooks`
+     field. Claude Code auto-loads `hooks/hooks.json` unconditionally —
+     a `manifest.hooks` entry only *adds* extra hook files, it never
+     replaces the canonical one — so declaring it here would just
+     register a second, redundant hook file rather than fix anything.
+  3. hooks-files-exist: hooks/hooks.json, loader.py, and
+     references/harness6.md are all present.
+  4. hooks-json-valid: hooks/hooks.json parses as JSON, has the right
+     `hooks.SessionStart` shape, and its command resolves the plugin root
+     through both `${CLAUDE_PLUGIN_ROOT}` and `$PLUGIN_ROOT` (Claude Code
+     only sets the former, Codex only the latter — same file is
+     auto-discovered by both agents).
   5. loader-executable: hooks/loader.py has the +x bit set.
   6. harness6-md-present: references/harness6.md exists and is non-empty.
 
@@ -36,8 +40,7 @@ import sys
 from pathlib import Path
 from typing import Callable, List, Tuple
 
-EXPECTED_VERSION = "0.3.8"
-CLAUDE_HOOK_PATH = "./hooks/claude/hooks.json"
+EXPECTED_VERSION = "0.3.9"
 
 
 def default_plugin_root() -> Path:
@@ -84,22 +87,19 @@ def check_manifest_version(plugin_root: Path) -> Tuple[bool, str]:
 
 
 def check_manifest_hooks_field(plugin_root: Path) -> Tuple[bool, str]:
-    """Claude Code requires an explicit hooks path; Codex auto-discovers hooks/hooks.json."""
+    """Both agents auto-discover hooks/hooks.json; an explicit override only adds files."""
     manifest = _load_manifest(plugin_root, ".claude-plugin", list())
     if manifest is None:
         return False, ".claude-plugin/plugin.json unreadable"
-    actual = manifest.get("hooks")
-    if actual != CLAUDE_HOOK_PATH:
-        return False, f".claude-plugin/plugin.json hooks {actual!r} != {CLAUDE_HOOK_PATH!r}"
-    return True, f".claude-plugin/plugin.json hooks == {CLAUDE_HOOK_PATH}"
+    if "hooks" in manifest:
+        return False, f".claude-plugin/plugin.json declares hooks {manifest['hooks']!r}, expected no hooks field"
+    return True, ".claude-plugin/plugin.json has no hooks field"
 
 
 def _hook_files(plugin_root: Path) -> List[Path]:
-    # Codex auto-discovers hooks/hooks.json (no manifest field needed).
-    # Claude Code uses the manifest-declared hooks/claude/hooks.json.
+    # Both Codex and Claude Code auto-discover hooks/hooks.json; no manifest field needed.
     return [
         plugin_root / "hooks" / "hooks.json",
-        plugin_root / "hooks" / "claude" / "hooks.json",
         plugin_root / "hooks" / "loader.py",
         plugin_root / "hooks" / "references" / "harness6.md",
     ]
@@ -112,49 +112,55 @@ def check_hooks_files_exist(plugin_root: Path) -> Tuple[bool, str]:
     return True, f"all {len(_hook_files(plugin_root))} hook files present"
 
 
-def _sessionstart_shape(payload: dict) -> bool:
-    """Verify the hooks.json payload has the expected `hooks.SessionStart` shape."""
+def _sessionstart_commands(payload: dict) -> List[str] | None:
+    """Verify the hooks.json payload has the expected `hooks.SessionStart` shape.
+
+    Returns the list of command strings found, or None if the shape is invalid.
+    """
     if not isinstance(payload, dict):
-        return False
+        return None
     hooks = payload.get("hooks")
     if not isinstance(hooks, dict):
-        return False
+        return None
     session_start = hooks.get("SessionStart")
     if not isinstance(session_start, list) or not session_start:
-        return False
+        return None
+    commands: List[str] = []
     for entry in session_start:
         if not isinstance(entry, dict):
-            return False
+            return None
         inner_hooks = entry.get("hooks")
         if not isinstance(inner_hooks, list) or not inner_hooks:
-            return False
+            return None
         for hook in inner_hooks:
             if not isinstance(hook, dict):
-                return False
+                return None
             if hook.get("type") != "command":
-                return False
-            if not isinstance(hook.get("command"), str):
-                return False
-    return True
+                return None
+            command = hook.get("command")
+            if not isinstance(command, str):
+                return None
+            commands.append(command)
+    return commands
 
 
 def check_hooks_json_valid(plugin_root: Path) -> Tuple[bool, str]:
-    problems: List[str] = []
-    for label, relative in (
-        ("codex", "hooks/hooks.json"),  # Codex auto-discovers the canonical path.
-        ("claude", "hooks/claude/hooks.json"),
-    ):
-        path = plugin_root / relative
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            problems.append(f"{label} hooks.json: {exc}")
-            continue
-        if not _sessionstart_shape(payload):
-            problems.append(f"{label} hooks.json: missing or malformed hooks.SessionStart")
-    if problems:
-        return False, "; ".join(problems)
-    return True, "both hooks.json files parse with valid SessionStart shape"
+    path = plugin_root / "hooks" / "hooks.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return False, f"hooks/hooks.json: {exc}"
+    commands = _sessionstart_commands(payload)
+    if commands is None:
+        return False, "hooks/hooks.json: missing or malformed hooks.SessionStart"
+    fallback = "${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"
+    non_portable = [c for c in commands if fallback not in c]
+    if non_portable:
+        return False, (
+            "hooks/hooks.json: command(s) don't resolve the plugin root under both "
+            f"${{CLAUDE_PLUGIN_ROOT}} and $PLUGIN_ROOT: {non_portable!r}"
+        )
+    return True, "hooks/hooks.json parses with valid, dual-agent-portable SessionStart shape"
 
 
 def check_loader_executable(plugin_root: Path) -> Tuple[bool, str]:
