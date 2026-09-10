@@ -63,13 +63,11 @@ class ValidateFailureTests(unittest.TestCase):
     verifies the relevant check goes FAIL.
 
     Tests use ``_copy_plugin_normalized`` which first applies the current
-    expected manifests state (version 0.3.4 + hooks field) before breaking
-    a single precondition. That isolates the assertion: exactly one check
-    fails per test.
+    expected manifest version (0.3.4) before breaking a single
+    precondition. That isolates the assertion: exactly one check fails
+    per test.
     """
 
-    EXPECTED_CODEX_HOOKS = "./codex/hooks.json"
-    EXPECTED_CLAUDE_HOOKS = "./hooks/claude/hooks.json"
     EXPECTED_VERSION = "0.3.4"
 
     def _copy_plugin(self) -> Path:
@@ -82,14 +80,10 @@ class ValidateFailureTests(unittest.TestCase):
 
     def _normalize_manifests(self, plugin_copy: Path) -> None:
         """Bring the tmp copy's manifests up to expected state so we test ONE failure at a time."""
-        for label, hooks_field in (
-            (".codex-plugin", self.EXPECTED_CODEX_HOOKS),
-            (".claude-plugin", self.EXPECTED_CLAUDE_HOOKS),
-        ):
+        for label in (".codex-plugin", ".claude-plugin"):
             manifest = plugin_copy / label / "plugin.json"
             data = json.loads(manifest.read_text())
             data["version"] = self.EXPECTED_VERSION
-            data["hooks"] = hooks_field
             manifest.write_text(json.dumps(data, indent=2))
 
     def _copy_plugin_normalized(self) -> Path:
@@ -134,13 +128,18 @@ class ValidateFailureTests(unittest.TestCase):
             import shutil
             shutil.rmtree(plugin_copy.parent, ignore_errors=True)
 
-    def test_missing_claude_hooks_field_fails(self):
-        """Clearing hooks field in claude manifest fails manifest-hooks-field check."""
+    def test_stray_claude_hooks_field_fails(self):
+        """Adding a hooks field to the claude manifest fails manifest-hooks-field check.
+
+        Claude Code auto-loads hooks/hooks.json unconditionally; a manifest.hooks
+        entry only registers an *additional* file, so re-adding one here is a
+        regression toward double-registering hooks, not a fix.
+        """
         plugin_copy = self._copy_plugin_normalized()
         try:
             manifest = plugin_copy / ".claude-plugin" / "plugin.json"
             data = json.loads(manifest.read_text())
-            del data["hooks"]
+            data["hooks"] = "./hooks/claude/hooks.json"
             manifest.write_text(json.dumps(data, indent=2))
             result = subprocess.run(
                 [sys.executable, str(VALIDATE), str(plugin_copy)],
@@ -213,8 +212,8 @@ class ValidateFailureTests(unittest.TestCase):
             import shutil
             shutil.rmtree(plugin_copy.parent, ignore_errors=True)
 
-    def test_malformed_codex_hooks_json_fails(self):
-        """Corrupting codex hooks.json fails hooks-json-valid check."""
+    def test_malformed_hooks_json_fails(self):
+        """Corrupting hooks/hooks.json fails hooks-json-valid check."""
         plugin_copy = self._copy_plugin_normalized()
         try:
             (plugin_copy / "hooks" / "hooks.json").write_text("{not valid json")
@@ -235,6 +234,28 @@ class ValidateFailureTests(unittest.TestCase):
             path = plugin_copy / "hooks" / "hooks.json"
             data = json.loads(path.read_text())
             del data["hooks"]["SessionStart"]
+            path.write_text(json.dumps(data, indent=2))
+            result = subprocess.run(
+                [sys.executable, str(VALIDATE), str(plugin_copy)],
+                capture_output=True, text=True, timeout=30,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("[FAIL] hooks-json-valid", result.stdout)
+        finally:
+            import shutil
+            shutil.rmtree(plugin_copy.parent, ignore_errors=True)
+
+    def test_hooks_command_without_claude_plugin_root_fallback_fails(self):
+        """A command that only resolves $PLUGIN_ROOT (the old Codex-only form) fails
+        hooks-json-valid — it silently breaks under Claude Code, which never sets
+        that variable and only auto-loads this same file."""
+        plugin_copy = self._copy_plugin_normalized()
+        try:
+            path = plugin_copy / "hooks" / "hooks.json"
+            data = json.loads(path.read_text())
+            data["hooks"]["SessionStart"][0]["hooks"][0]["command"] = (
+                'python3 "$PLUGIN_ROOT/hooks/loader.py"'
+            )
             path.write_text(json.dumps(data, indent=2))
             result = subprocess.run(
                 [sys.executable, str(VALIDATE), str(plugin_copy)],

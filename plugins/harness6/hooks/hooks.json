@@ -1,12 +1,12 @@
 {
-  "description": "Inject bundled harness6 operating instructions on every Codex session start.",
+  "description": "Inject bundled harness6 operating instructions on every Codex or Claude Code session start. Claude Code auto-loads this file regardless of any manifest.hooks override, so it must work standalone under ${CLAUDE_PLUGIN_ROOT}; Codex auto-discovers it too, under $PLUGIN_ROOT.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$PLUGIN_ROOT/hooks/loader.py\""
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/hooks/loader.py\""
           }
         ]
       }
