@@ -7,8 +7,10 @@
 # - namespace defaults to the `namespace` key in values/milvus.yaml
 #   (harness6-system, per the values-layer contract from slice #43).
 # - storageClass is left unset everywhere → the cluster-default
-#   StorageClass is used; PVCs carry the chart's default
-#   helm.sh/resource-policy: keep annotation (survives uninstall).
+#   StorageClass is used; the standalone and minio PVCs carry the
+#   chart's default helm.sh/resource-policy: keep annotation (survives
+#   uninstall); the etcd PVC comes from a StatefulSet volumeClaimTemplate
+#   and is not annotated.
 # - After rollout the script prints the auto-assigned NodePort for the
 #   Milvus gRPC endpoint (19530).
 #
@@ -67,16 +69,24 @@ helm upgrade --install "$RELEASE_NAME" "$CHART_REF" \
 
 info "==> waiting for ${RELEASE_NAME} rollouts"
 for kind in deployment statefulset; do
-  # Ignore "No resources found" — only wait on what actually exists.
-  resources="$(kubectl get "$kind" -n "$NAMESPACE" -o name 2>/dev/null)" || resources=""
+  # Scope to the release via label selector so unrelated workloads in the
+  # shared namespace never stall this wait (review PR #50, finding 2).
+  resources="$(kubectl get "$kind" -n "$NAMESPACE" \
+    -l "app.kubernetes.io/instance=${RELEASE_NAME}" -o name 2>/dev/null)" || resources=""
   for res in $resources; do
     kubectl wait "$res" -n "$NAMESPACE" --for=condition=available --timeout=10m
   done
 done
 
-# Report the reachable gRPC endpoint (memsearch target).
-node_port="$(kubectl get service "${RELEASE_NAME}-milvus" -n "$NAMESPACE" \
-  -o jsonpath='{.spec.ports[?(@.port==19530)].nodePort}' 2>/dev/null || true)"
+# Report the reachable gRPC endpoint (memsearch target). Helm's fullname
+# helper returns the release name itself when it already contains the
+# chart name, so with RELEASE_NAME=milvus the gRPC Service is named
+# "milvus" — look it up by the chart's instance label selector instead of
+# guessing the fullname (review PR #50, finding 1).
+node_port="$(kubectl get service -n "$NAMESPACE" \
+  -l "app.kubernetes.io/instance=${RELEASE_NAME}" \
+  -o 'jsonpath={range .items[*].spec.ports[*]}{.port}{" "}{.nodePort}{"\n"}{end}' 2>/dev/null \
+  | awk '$1==19530 {print $2; exit}') || true"
 if [[ -n "$node_port" ]]; then
   info "==> Milvus gRPC (19530) reachable via NodePort ${node_port} on any node"
   info "==> memsearch URI: <node-host>:${node_port}"
