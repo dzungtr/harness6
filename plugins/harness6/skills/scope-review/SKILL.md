@@ -1,6 +1,6 @@
 ---
 name: scope-review
-description: Run before any design session or brainstorm to check whether the goal is PR-sized. Evaluates three criteria — deliverability, reviewability, independence — and returns PASS (proceed to /design-session) or FAIL (run an architecture session first). Does not decompose, design, or modify the goal.
+description: Run before any design session or brainstorm to check whether the goal is PR-sized. Evaluates three criteria — deliverability, reviewability, independence — and returns PASS (proceed to /design-session) or FAIL (decompose first via research + grilling). Does not decompose, design, or modify the goal.
 ---
 
 # scope-review — Pre-Brainstorm PR-Boundary Gate
@@ -14,7 +14,7 @@ description: Run before any design session or brainstorm to check whether the go
 
 **Skip when:**
 - Goal is clearly a single-file change or a well-scoped bugfix (use Workflow A directly)
-- You already have a slice list from an architecture session and you are working on a named slice
+- You already have a slice list from a decomposition grilling (epic issue) and you are working on a named slice
 
 ## The Three Criteria
 
@@ -72,14 +72,11 @@ Deliverability: [✓ or ✗] <one sentence rationale>
 Reviewability:  [✓ or ✗] <one sentence rationale>
 Independence:   [✓ or ✗] <one sentence rationale>
 
-Before designing, run an architecture session to produce an ordered
-slice list. Then re-run /scope-review on the first slice.
-
-Suggested architecture session prompt:
-  "Map out <goal> as an ordered sequence of independent PR slices.
-   Each slice must leave main runnable and add standalone value.
-   Output: a numbered list of slices with a one-line goal for each.
-   Do not design any slice — only decompose."
+Before designing, the design session must decompose: research the domain
+(verify external facts — never assume from model memory), grill the human
+on slice boundaries and slice order ONLY, publish the ordered slice list to
+an epic tracker issue, then halt. Then launch one /design-session per
+slice; each child re-runs /scope-review on its own slice.
 ```
 
 ## Examples
@@ -107,14 +104,11 @@ Deliverability: ✗ "observability" implies metrics, logs, and alerting — merg
 Reviewability:  ✗ a reviewer would need to context-switch across ServiceMonitor, Prometheus rules, Grafana dashboards, and alert routing
 Independence:   ✗ individual pieces (e.g. just the ServiceMonitor) add value, but "phase 2 observability" as a whole is a bundle
 
-Before designing, run an architecture session to produce an ordered
-slice list. Then re-run /scope-review on the first slice.
-
-Suggested architecture session prompt:
-  "Map out 'set up observability for kape phase 2' as an ordered sequence
-   of independent PR slices. Each slice must leave main runnable and add
-   standalone value. Output: a numbered list of slices with a one-line
-   goal for each. Do not design any slice — only decompose."
+Before designing, decompose: research the domain (verify external
+facts — never assume from model memory), grill the human on slice
+boundaries and slice order ONLY, publish the ordered slice list to
+an epic tracker issue, then halt. Then launch one /design-session per
+slice; each child re-runs /scope-review on its own slice.
 ```
 
 ## What this skill does NOT do
