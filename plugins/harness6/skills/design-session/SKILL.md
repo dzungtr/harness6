@@ -1,11 +1,15 @@
 ---
 name: design-session
-description: "Use when the human asks to design, plan, or build a non-trivial feature, refactor, or change that needs upfront design (multiple files, architectural decisions, ambiguous requirements, \"let's build/design/plan X\"). Runs the full scope-review → grill-with-docs (with live research) → spec → tickets → triage → docs-PR flow inline in this session. Halts and splits into per-slice child sessions when scope is too large. SKIP for: small bugfixes, single-file edits, well-scoped changes with clear requirements, or pure questions."
+description: "Use when the human asks to design, plan, or build a non-trivial feature, refactor, or change that needs upfront design (multiple files, architectural decisions, ambiguous requirements, \"let's build/design/plan X\"). Runs scope-review first and routes on its verdict: TASK grills to a single crisp PR, EPIC runs the full grill → spec → tickets → triage → docs-PR flow, INITIATIVE splits into epics and halts for child sessions. SKIP for: small bugfixes, single-file edits, well-scoped changes with clear requirements, or pure questions."
 ---
 
 # design-session
 
-Run the full `scope-review` → `grill-with-docs` → `/to-spec` → `/to-tickets` → triage → docs-PR flow inline in this main session.
+Run the scope-review-gated design flow in this main session. The verdict routes to one of three paths:
+
+- **TASK** — grill → docs-PR (no tracker machinery)
+- **EPIC** — grill → `/to-spec` → `/to-tickets` → triage → docs-PR (full flow)
+- **INITIATIVE** — decompose into epics → halt (child sessions per epic)
 
 ## When to invoke
 
@@ -30,16 +34,13 @@ Pick a short kebab-case slug for the feature (e.g. `payment-retry`, `multi-tenan
 - `pwd`, current git branch, repo root.
 - Any file paths, constraints, or seed goals the human mentioned so far.
 
-### 2. Scope gate (split and conquer)
+### 2. Scope gate (route on the scope-review verdict)
 
-Invoke the `scope-review` skill on the goal as stated.
+Invoke the `scope-review` skill on the goal as stated, then route on its tier verdict:
 
-- **PASS** → continue to step 3.
-- **FAIL** → the goal is too large for one session; a mega-session would blow the model's context. Pivot to **decomposition mode** and stop there:
-  1. Apply the research rule (step 3) to any domain facts you lean on while decomposing — verify, don't assume.
-  2. Grill the human **only about slice boundaries and slice order**. Never design slice internals in this session.
-  3. Publish the ordered slice list to an **epic-style tracker issue** — this epic is the durable decomposition artifact; each child session takes one slice from it.
-  4. **Halt.** Instruct the human to launch a fresh `/design-session` per slice. Each child session re-runs this scope gate on its own slice as its first substantive step.
+- **TASK** → **lightweight session.** Continue to step 3 and grill until the single-PR scope is crisp. Then skip steps 4–6 entirely — no spec issue, no tickets, no epic, no triage — and go straight to step 7 (docs PR, only if ADRs/glossary crystallised during grilling). The grilled conversation is the spec: dispatch implementation afterwards as a single Workflow A background agent carrying the sharpened scope.
+- **EPIC** → **full session.** Run steps 3–7 in order: grill with live research → spec → tickets → triage → docs-PR.
+- **INITIATIVE** → **decomposition mode, then halt.** Apply the research rule (step 3) to any domain facts you lean on while decomposing — verify, don't assume. Grill the human on scope boundaries and epic order ONLY — never design inside any epic. Publish one epic issue per resulting epic, in order, on the tracker. Then **halt** and request one fresh `/design-session` per epic. Each child re-runs this gate on its epic; a well-split epic verdicts EPIC and proceeds through the full flow.
 
 ### 3. Grill with live research
 
@@ -81,4 +82,5 @@ Raise a PR for any ADR and docs changes (CONTEXT.md, ADRs, or other documentatio
 ## Notes
 
 - Do NOT execute any implementation — that is dispatched separately from the main session as a Workflow A background agent after this design session completes.
-- The FAIL path (step 2) halts the session after the epic issue is published. Implementation still flows through child sessions — never resume a halted parent session to design slice internals.
+- The INITIATIVE route (step 2) halts the session after the epics are published. Implementation still flows through child sessions — never resume a halted parent session to design epic internals.
+- TASK sessions skip the tracker machinery by design: the grilled conversation is the spec, handed to a single Workflow A implementer.
