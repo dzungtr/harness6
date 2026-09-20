@@ -116,8 +116,7 @@ ensure_namespace() {
 }
 
 ensure_secret() {
-  local ns="$1" args=() key
-  args=(--from-literal)
+  local ns="$1" key
   local literals=()
   for key in "${SECRET_KEYS[@]}"; do
     literals+=("--from-literal=${key}=${ENV[$key]}")
@@ -140,7 +139,7 @@ write_values_user() {
     for key in "${NONSECRET_KEYS[@]}"; do
       target="${VALUES_USER_KEY[$key]}"
       value="${ENV[$key]:-${ENV_DEFAULTS[$key]:-}}"
-      printf '%s: %s\n' "$target" "$value"
+      printf "%s: '%s'\n" "$target" "$value"
     done
   } > "$VALUES_USER"
   info "wrote ${VALUES_USER}"

@@ -82,6 +82,22 @@ out="$(bash "$BOOTSTRAP" --env-file "${TMP}/warn.env" --dry-run 2>&1)"; rc=$?
 check "host.docker.internal URL is a warning, not a failure" "0" "$rc"
 grep -q "^warning: EMBEDDER_API_URL" <<<"$out"; check "warning names EMBEDDER_API_URL" "0" "$?"
 
+# --- case 3b: localhost URL warns too ---
+cat > "${TMP}/warn-local.env" <<'LOCALEOF'
+OPENAI_API_KEY=sk-test
+OPENAI_API_URL=https://api.openai.com/v1
+MEM_EXTRACTOR_MODEL=claude-haiku-4-5
+EMBEDDER_API_URL=http://localhost:11434/v1
+MEM_EMBED_MODEL=nomic-embed-text
+EMBEDDER_DIMENSIONS=768
+NEO4J_PASSWORD=password123
+SIGNOZ_JWT_SECRET=jwt
+SIGNOZ_USER_ROOT_PASSWORD=pass
+LOCALEOF
+out="$(bash "$BOOTSTRAP" --env-file "${TMP}/warn-local.env" --dry-run 2>&1)"; rc=$?
+check "localhost URL is a warning, not a failure" "0" "$rc"
+grep -q "^warning: EMBEDDER_API_URL" <<<"$out"; check "warning names EMBEDDER_API_URL for localhost" "0" "$?"
+
 # --- case 4: happy path derives namespace + secret + values-user ---
 out="$(run_bootstrap "${TMP}/warn.env")"; rc=$?
 check "happy path exits 0" "0" "$rc"
@@ -90,8 +106,8 @@ grep -q "create namespace harness6-system" <<<"$log"; check "namespace created" 
 grep -q "create secret generic harness6-secrets -n harness6-system" <<<"$log"; check "secret created" "0" "$?"
 vu="${K8S_DIR}/values-user.yaml"
 grep -q "^namespace: harness6-system$" "$vu"; check "values-user namespace" "0" "$?"
-grep -q "^embedderApiUrl: http://host.docker.internal:11434/v1$" "$vu"; check "values-user embedder URL" "0" "$?"
-grep -q "^neo4jDatabase: neo4j$" "$vu"; check "values-user default applied" "0" "$?"
+grep -q "^embedderApiUrl: 'http://host.docker.internal:11434/v1'$" "$vu"; check "values-user embedder URL" "0" "$?"
+grep -q "^neo4jDatabase: 'neo4j'$" "$vu"; check "values-user default applied" "0" "$?"
 grep -qE "PASSWORD|API_KEY|JWT_SECRET" "$vu"; check "values-user has no secret values" "1" "$?"
 rm -f "$vu"
 
