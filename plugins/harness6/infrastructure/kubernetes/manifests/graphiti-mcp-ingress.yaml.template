@@ -1,0 +1,19 @@
+# Optional Ingress for graphiti-mcp — rendered and applied by deploy.sh only
+# when ingressClassName is set (spec #42 user story 16). The Service stays
+# NodePort regardless; this adds HTTP routing on top.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: graphiti-mcp
+spec:
+  ingressClassName: "@@INGRESS_CLASS@@"
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: graphiti-mcp
+                port:
+                  name: http

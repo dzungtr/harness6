@@ -1,5 +1,6 @@
 # Default values for the harness6-system namespace — Neo4j stack
-# (community Helm chart, slice #46; graphiti-mcp uses raw manifests).
+# (community Helm chart, pinned 5.26.x to match Compose's neo4j:5.26-community;
+# slice #46; graphiti-mcp uses raw manifests).
 namespace: harness6-system
 
 # Set to your ingress controller's class name to route HTTP endpoints via
@@ -7,9 +8,32 @@ namespace: harness6-system
 # this is set; its Service stays NodePort regardless.
 ingressClassName: ""
 
-# Modest resource requests; no hard limits (spec #42 user story 24).
-# Slice #46 tunes Neo4j requests, PVC size, and Retain here.
-resources:
-  requests:
-    cpu: 250m
-    memory: 512Mi
+# Keep bolt in-cluster (Compose parity: 7687 is not published externally).
+services:
+  neo4j:
+    enabled: false # disables the external LoadBalancer service
+
+neo4j:
+  name: neo4j
+  edition: community
+  # Initial password comes from the harness6-secrets Secret (NEO4J_PASSWORD,
+  # created by bootstrap.sh). The chart requires a NEO4J_AUTH key of the form
+  # "neo4j/<password>"; deploy.sh derives that wrapper Secret at deploy time
+  # (never committed).
+  passwordFromSecret: neo4j-auth
+  # Modest sizing (spec #42 user story 24). The chart enforces hard minimums
+  # of 500m CPU / 2Gi memory, and applies these as BOTH requests and limits —
+  # limits-free sizing is not supported by the chart.
+  resources:
+    cpu: 500m
+    memory: 2Gi
+
+# Data PVC on the cluster's default StorageClass (spec #42 user story 8).
+volumes:
+  data:
+    mode: defaultStorageClass
+    defaultStorageClass:
+      accessModes:
+        - ReadWriteOnce
+      requests:
+        storage: 10Gi

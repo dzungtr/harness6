@@ -16,6 +16,18 @@ Layout:
   `values-user.yaml` from `infrastructure/.env`, and creates the
   `harness6-secrets` Secret via `kubectl create secret generic` at deploy
   time. Secret YAML with `stringData` is never committed to this repo.
+- `deploy.sh` (slice #46) — deploys the Neo4j community chart (pinned
+  5.26.30) and the graphiti-mcp raw manifests in dependency order, waits for
+  each rollout, and reports endpoints. Run `bootstrap.sh` first: it needs
+  `values-user.yaml` and the `harness6-secrets` Secret. graphiti-mcp Service
+  is NodePort **30800** (HTTP `/mcp/` and `/health`); when `ingressClassName`
+  is set, `manifests/graphiti-mcp-ingress.yaml.template` is rendered and
+  applied as an Ingress on top (Service stays NodePort).
+- `manifests/graphiti-mcp.yaml` — raw Deployment + NodePort Service for the
+  MCP-only image (no upstream chart). Non-secret env comes from the generated
+  `graphiti-env` ConfigMap; secrets from `harness6-secrets`; the entity-type
+  schema is mounted from the generated `graphiti-config` ConfigMap
+  (infrastructure/config.yaml).
 - `tests/run-tests.sh` — offline tests (fake `kubectl`) for the bootstrap
   derivation, validation, and warning logic.
 - `values-user.yaml` — **generated**, never committed (see `.gitignore`).
