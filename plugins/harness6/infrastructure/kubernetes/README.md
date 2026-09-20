@@ -19,6 +19,13 @@ Layout:
 - `tests/run-tests.sh` — offline tests (fake `kubectl`) for the bootstrap
   derivation, validation, and warning logic.
 - `values-user.yaml` — **generated**, never committed (see `.gitignore`).
+- `deploy-milvus.sh` — installs/upgrades Milvus from the upstream
+  `zilliztech/milvus` chart with the bundled etcd + minio subcharts
+  (slice #45), waits for rollouts, and prints the auto-assigned NodePort
+  for the Milvus gRPC endpoint (19530). PVCs carry the chart's default
+  `helm.sh/resource-policy: keep`; the `Retain` reclaim policy itself is
+  a StorageClass attribute the chart cannot set — leave it to the
+  cluster's default StorageClass.
 
 Secret/derivation contract (consumed by slices #44–#47):
 
