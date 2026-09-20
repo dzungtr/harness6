@@ -23,13 +23,21 @@ Layout:
   is NodePort **30800** (HTTP `/mcp/` and `/health`); when `ingressClassName`
   is set, `manifests/graphiti-mcp-ingress.yaml.template` is rendered and
   applied as an Ingress on top (Service stays NodePort).
+- `deploy-signoz.sh` (slice #47) — deploys the SigNoz stack from the official
+  `charts.signoz.io` repo, chart pinned **0.129.0** (appVersion v0.129.0,
+  Compose parity). Passes `values/signoz.yaml` + generated
+  `values-user.yaml`, waits for rollouts, health-gates the UI with an
+  in-cluster probe against `/api/v1/version`, and prints the auto-assigned
+  NodePorts for the UI (8080) and OTLP gRPC/HTTP (4317/4318).
 - `manifests/graphiti-mcp.yaml` — raw Deployment + NodePort Service for the
   MCP-only image (no upstream chart). Non-secret env comes from the generated
   `graphiti-env` ConfigMap; secrets from `harness6-secrets`; the entity-type
   schema is mounted from the generated `graphiti-config` ConfigMap
   (infrastructure/config.yaml).
 - `tests/run-tests.sh` — offline tests (fake `kubectl`) for the bootstrap
-  derivation, validation, and warning logic.
+  derivation, validation, and warning logic. A second runner,
+  `tests/run-deploy-signoz-tests.sh` (fake `kubectl`/`helm`), covers
+  deploy-signoz.sh.
 - `values-user.yaml` — **generated**, never committed (see `.gitignore`).
 - `deploy-milvus.sh` — installs/upgrades Milvus from the upstream
   `zilliztech/milvus` chart with the bundled etcd + minio subcharts
