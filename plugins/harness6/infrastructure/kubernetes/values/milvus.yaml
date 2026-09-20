@@ -1,14 +1,64 @@
 # Default values for the harness6-system namespace — Milvus stack
-# (upstream milvus Helm chart with bundled etcd + minio, slice #45).
+# (upstream zilliztech/milvus Helm chart with bundled etcd + minio,
+# slice #45). Chart facts verified live against chart v5.0.28
+# (app 3.0.1); if the chart's structure changes, re-verify these keys
+# with `helm show values zilliztech/milvus`.
+#
+# Top-level `namespace` / `ingressClassName` are this repo's parameters
+# (not chart keys — the chart ignores them): the deploy script reads
+# `namespace` and Milvus gRPC is NodePort-only regardless of ingress.
+
 namespace: harness6-system
 
-# Set to your ingress controller's class name to route HTTP endpoints via
-# Ingress. Milvus gRPC (19530) always stays NodePort.
+# Set to your ingress controller's class name if you add an Ingress for
+# other HTTP stacks; Milvus gRPC (19530) always stays NodePort.
 ingressClassName: ""
 
-# Modest resource requests; no hard limits (spec #42 user story 24).
-# Slice #45 tunes Milvus requests, PVC sizes, and Retain here.
-resources:
-  requests:
-    cpu: 1
-    memory: 2Gi
+# Standalone topology with the bundled etcd + minio subcharts (issue #45:
+# do not deploy etcd/minio separately, disable nothing). Single-node
+# homelab sizing: etcd 1 replica, minio standalone mode.
+cluster:
+  enabled: false
+
+# The chart ships pulsarv3.enabled=true by default even in standalone
+# mode (etcd + minio carry meta/storage; pulsarv3 would deploy 9 idle
+# pods). The chart's own standalone CI values disable it — mirror that.
+pulsarv3:
+  enabled: false
+
+standalone:
+  replicas: 1
+  # Modest resource requests; no hard limits (spec #42 user story 24).
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+  persistence:
+    enabled: true
+    persistentVolumeClaim:
+      # storageClass left unset → cluster-default StorageClass
+      # (spec #42 user story 8).
+      size: 50Gi
+
+service:
+  type: NodePort
+  port: 19530
+  # Empty → the cluster auto-assigns the NodePort; deploy-milvus.sh
+  # reports the assigned port after rollout. (NodePorts must be in the
+  # 30000–32767 range, so 19530 itself cannot be pinned.)
+  nodePort: ""
+
+etcd:
+  enabled: true
+  replicaCount: 1
+  persistence:
+    enabled: true
+    # cluster-default StorageClass; modest size for a homelab.
+    size: 5Gi
+
+minio:
+  enabled: true
+  mode: standalone
+  persistence:
+    enabled: true
+    size: 50Gi
