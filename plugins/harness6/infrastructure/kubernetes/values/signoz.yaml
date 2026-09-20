@@ -1,0 +1,14 @@
+# Default values for the harness6-system namespace — SigNoz stack
+# (SigNoz/charts Helm chart, slice #44).
+namespace: harness6-system
+
+# Set to your ingress controller's class name to route HTTP endpoints
+# (SigNoz UI) via Ingress. Empty keeps every endpoint on NodePort.
+ingressClassName: ""
+
+# Modest resource requests; no hard limits (spec #42 user story 24).
+# Slice #44 tunes per-component requests, PVC sizes, and Retain here.
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi

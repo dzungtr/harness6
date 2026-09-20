@@ -1,0 +1,14 @@
+# Default values for the harness6-system namespace — Milvus stack
+# (upstream milvus Helm chart with bundled etcd + minio, slice #45).
+namespace: harness6-system
+
+# Set to your ingress controller's class name to route HTTP endpoints via
+# Ingress. Milvus gRPC (19530) always stays NodePort.
+ingressClassName: ""
+
+# Modest resource requests; no hard limits (spec #42 user story 24).
+# Slice #45 tunes Milvus requests, PVC sizes, and Retain here.
+resources:
+  requests:
+    cpu: 1
+    memory: 2Gi
