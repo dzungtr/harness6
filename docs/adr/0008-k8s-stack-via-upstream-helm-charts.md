@@ -1,6 +1,6 @@
 # 8. Kubernetes variant of the infrastructure stack: upstream charts own internal topology; compose parity dropped at the infra-component level
 
-Date: 2026-07-26
+Date: 2026-09-21
 
 ## Status
 
