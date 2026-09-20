@@ -1,6 +1,7 @@
 ---
 name: autobot
-description: Autonomously build a complete feature, bugfix, or project end-to-end from a single topic/initiative/epic — scope-review gating, nested autonomous design sessions, implementation dispatch, and autonomous PR review & merge, all tracked through a GitHub issue tree. Use when the human asks to build or ship something hands-off end-to-end ("autobuild X", "ship this epic", "run autobot on <topic>") rather than driving a design session themselves.
+description: Autonomously build a complete feature, bugfix, or project end-to-end from a single topic/initiative/epic — scope-review gating, nested autonomous design sessions, implementation dispatch, and autonomous PR review & merge, all tracked through a GitHub issue tree. Invoke explicitly with /autobot <topic>.
+disable-model-invocation: true
 ---
 
 # autobot — autonomous initiative builder
