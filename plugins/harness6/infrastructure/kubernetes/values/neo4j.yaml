@@ -1,0 +1,15 @@
+# Default values for the harness6-system namespace — Neo4j stack
+# (community Helm chart, slice #46; graphiti-mcp uses raw manifests).
+namespace: harness6-system
+
+# Set to your ingress controller's class name to route HTTP endpoints via
+# Ingress. graphiti-mcp (8000) can additionally be routed via Ingress when
+# this is set; its Service stays NodePort regardless.
+ingressClassName: ""
+
+# Modest resource requests; no hard limits (spec #42 user story 24).
+# Slice #46 tunes Neo4j requests, PVC size, and Retain here.
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
