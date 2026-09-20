@@ -49,7 +49,8 @@ standalone self-hosted service sunset February 2026 (folded into LaunchDarkly).
 
 ## Decision
 
-Adopt **SigNoz** (self-hosted docker-compose distribution).
+Adopt **SigNoz** (self-hosted docker-compose distribution; a Kubernetes variant of the
+same stack is covered by [ADR 0008](0008-k8s-stack-via-upstream-helm-charts.md)).
 
 It is the only candidate green on every hard requirement simultaneously:
 
