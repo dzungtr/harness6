@@ -80,6 +80,85 @@ Ask the user to fill or review every key shown and explicitly confirm when the s
 values are ready. Do not run Compose until the user confirms. If the user does not confirm, stop
 with `harness6-init was not started`. Never overwrite an existing `ENV_FILE`.
 
+Do not run any Compose command before the environment confirmation in the next section.
+
+## 3b. Choose the deployment target
+
+After the environment is scaffolded and confirmed (section 3), ask the user once:
+
+> **Docker Compose or Kubernetes?**
+
+- Default is **Docker Compose** — when the user does not answer or does not need a choice made
+  for them, proceed with Compose.
+- If the user chooses **Kubernetes**, skip sections 4–5 (Compose) and run the Kubernetes path
+  in section 3c, then continue at section 6 (`.mcp.json` registration) and section 7 (memsearch)
+  — those are shared by both paths.
+- The Compose path (sections 4–5) is unchanged by the Kubernetes path existing; do not alter
+  its behavior for Compose users.
+
+## 3c. Kubernetes deployment path
+
+All commands in this section run from `"$INFRA_ROOT/kubernetes"`. The deploy scripts are
+idempotent (`helm upgrade --install`, `kubectl apply`), so a re-run resumes safely.
+
+### Verify the toolchain first (halt early)
+
+Before anything else, verify `kubectl`, `helm`, and cluster reachability, halting with a clear
+error when missing:
+
+```bash
+command -v kubectl >/dev/null 2>&1 || { echo 'harness6-init: kubectl not found on PATH. Install kubectl and retry.' >&2; exit 1; }
+command -v helm   >/dev/null 2>&1 || { echo 'harness6-init: helm not found on PATH. Install helm and retry.' >&2; exit 1; }
+kubectl cluster-info >/dev/null 2>&1 || { echo 'harness6-init: no reachable Kubernetes cluster (kubectl cluster-info failed). Check kubeconfig and retry.' >&2; exit 1; }
+```
+
+### 1. Namespace, Secrets, values-user.yaml (bootstrap)
+
+```bash
+cd "$INFRA_ROOT/kubernetes"
+bash bootstrap.sh
+```
+
+bootstrap.sh creates the `harness6-system` namespace (override with `HARNESS6_NAMESPACE`),
+creates the `harness6-secrets` Secret via `kubectl create secret generic` from `.env` keys
+at deploy time, derives the non-secret `values-user.yaml` (flat camelCase keys), and warns
+(not fails) when `OPENAI_API_URL` or `EMBEDDER_API_URL` contains `host.docker.internal` or
+`localhost` — surface that warning to the user, since Compose-only URLs will not resolve from
+inside the cluster. Halt on its errors (missing/empty required keys).
+
+### 2. Helm installs in dependency order (SigNoz → Milvus → Neo4j/graphiti)
+
+Run each script and confirm its rollout completes before starting the next; later components
+never start against uninitialized dependencies:
+
+```bash
+bash deploy-signoz.sh   # SigNoz/charts 0.129.0; waits for rollouts, health-gates the UI
+bash deploy-milvus.sh   # upstream Milvus chart; waits, prints the 19530 NodePort
+bash deploy.sh          # Neo4j community chart 5.26.30 + graphiti-mcp manifests; waits
+```
+
+If a script fails, report its output, gather diagnostics (`kubectl get pods -n harness6-system`,
+`kubectl describe`/`logs` on the failing resource), and stop — do not patch manifests by hand.
+
+### 3. Report endpoints
+
+deploy-signoz.sh and deploy-milvus.sh print the auto-assigned NodePorts. Verify and report:
+
+```bash
+kubectl get svc -n harness6-system \
+  -o 'jsonpath={range .items[*].metadata.name}{"\t"}{range .spec.ports[*]}{.port}={.nodePort}{" "}{end}{"\n"}{end}'
+```
+
+Report to the user (replace `<node>` with any reachable node IP):
+
+- SigNoz UI: `http://<node>:<nodePort-of-8080>`
+- OTLP endpoints: `<node>:<nodePort-of-4317>` (gRPC) and `<node>:<nodePort-of-4318>` (HTTP)
+- graphiti-mcp: `http://<node>:30800/mcp/` (health: `/health`)
+- Milvus (memsearch URI): `<node>:<nodePort-of-19530>`
+
+Then continue with `.mcp.json` registration and memsearch setup (sections 6–7), using the
+reported Milvus NodePort URI for memsearch.
+
 ## 4. Discover and start Compose
 
 There must be exactly one top-level Compose file matching `*compose*.yml` or `*compose*.yaml`:
@@ -143,7 +222,7 @@ Only after `healthy`, report the SigNoz UI as `http://localhost:${SIGNOZ_UI_PORT
 Compose-declared host port; if none is declared, report `http://localhost:3301` with a note that
 3301 is the default).
 
-## 6. Register the repository MCP servers
+## 6. Register the repository MCP servers (both paths)
 
 The repository `.mcp.json` is the source configuration. Ask the user which Claude Code scope to
 install it at: **user** or **project**. Explain the targets before proceeding:
@@ -159,16 +238,17 @@ the source, report that it is already installed and do not copy it. If the sourc
 be found at the repository root, report the path and skip registration rather than inventing config.
 The copied entries must retain the HTTP URLs (including `/mcp/` for agentic-memory).
 
-## 7. Set up memsearch
+## 7. Set up memsearch (both paths)
 
 Offer to run the `memsearch-init` skill from the repository root. Follow that skill's confirmation
 and indexing steps; do not invent a collection or paths without presenting them to the user. Before
 indexing, ensure memsearch has an explicit Milvus store and embedding provider configured. Ask the
 user to confirm or provide these values:
 
-- Milvus URI (for this stack, use the reachable Milvus URI appropriate to the user's installation,
-  such as `http://localhost:19530`; do not assume a local Lite database when the Compose Milvus
-  service is intended).
+- Milvus URI — on the Compose path use the reachable Milvus URI appropriate to the user's
+  installation, such as `http://localhost:19530`; on the Kubernetes path use the NodePort URI
+  reported by section 3c (`<node-host>:<milvus-nodePort>`). Do not assume a local Lite database
+  when a deployed Milvus service is intended.
 - Embedding provider (for example `openai`), model, and its OpenAI-compatible base URL.
 - API key via an environment reference (for example `env:OPENAI_API_KEY`), never by placing a
   secret in a committed file.
