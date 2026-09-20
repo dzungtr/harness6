@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.10] - 2026-09-10
+
+Patch release redesigning the design-session flow and scope-review into a verdict-routed, context-safe pipeline.
+
+### Changed
+
+- **`design-session` scope gate routes on the scope-review verdict** — `TASK` grills to a single crisp PR with no tracker machinery (spec/tickets/epic/triage skipped; one Workflow A dispatch); `EPIC` runs the full grill → `/to-spec` → `/to-tickets` → triage → docs-PR flow; `INITIATIVE` decomposes into ordered epic issues, halts, and requests one child `/design-session` per epic (each child re-enters the gate). A mega-session that blows model context is never attempted.
+- **`scope-review` rewritten as a pure upfront estimator** — was PR-boundary gate, now sizes any goal (task → initiative). Three estimation axes (concern count, coupling & dependency shape, session-fit/context risk) yield a `TASK` / `EPIC` / `INITIATIVE` tier verdict plus PR-count and session-count estimates. All routing text removed: the verdict only; the caller routes.
+- **`design-session` grilling gains a live-research rule (model-/agent-agnostic)** — any load-bearing external fact must be verified via available web research tooling before entering the spec or an ADR; inconclusive or toolless facts are tagged `UNVERIFIED:` instead of silently asserted. ADR authority is the `domain-modeling` skill (three gates + ADR-FORMAT/CONTEXT-FORMAT).
+- **Matt Pocock vocabulary adopted** — `/to-prd` → `/to-spec`, `/to-issues` → `/to-tickets`; blocking edges replace parent-child linking; tracker-specific parent-link instructions removed.
+- **HITL/AFK classification moved to the triage step** — ticketing quizzes granularity and dependencies only; triage classifies (`ready-for-human` = HITL) and flags the spec issue's child checklist.
+- **Spec-issue ledger slimmed** — Results section, Definition-of-done promotion, ADR "Measured results" stub and results-promotion-at-close removed; the Handoffs table (cross-slice value ledger) stays.
+- **All skills agent-invokable except `autobot`** — `autobot` keeps `disable-model-invocation` as the one deliberate human-only exception (autonomous orchestrator must never self-trigger); no other harness6 skill carries a gate.
+- **Plugin version bump** — manifests, `hooks/validate.py` `EXPECTED_VERSION`, and the marketplace entry to `0.3.10`.
+
 ## [0.3.9] - 2026-09-10
 
 Patch release: the 0.3.8 hooks-path fix didn't actually fix Claude Code loading, because Claude Code auto-loads `hooks/hooks.json` unconditionally — `manifest.hooks` only registers *additional* hook files, it never replaces the canonical one. So `hooks/hooks.json` (still using the Codex-only bare `$PLUGIN_ROOT`, unset under Claude Code) kept loading and erroring on every Claude Code session, alongside the correctly-wired `hooks/claude/hooks.json`, regardless of restarts.

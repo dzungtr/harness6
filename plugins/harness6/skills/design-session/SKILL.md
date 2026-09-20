@@ -1,11 +1,15 @@
 ---
 name: design-session
-description: "Use when the human asks to design, plan, or build a non-trivial feature, refactor, or change that needs upfront design (multiple files, architectural decisions, ambiguous requirements, \"let's build/design/plan X\"). Runs the full grill-with-docs → PRD → issues flow inline in this session. SKIP for: small bugfixes, single-file edits, well-scoped changes with clear requirements, or pure questions."
+description: "Use when the human asks to design, plan, or build a non-trivial feature, refactor, or change that needs upfront design (multiple files, architectural decisions, ambiguous requirements, \"let's build/design/plan X\"). Runs scope-review first and routes on its verdict: TASK grills to a single crisp PR, EPIC runs the full grill → spec → tickets → triage → docs-PR flow, INITIATIVE splits into epics and halts for child sessions. SKIP for: small bugfixes, single-file edits, well-scoped changes with clear requirements, or pure questions."
 ---
 
 # design-session
 
-Run the full `grill-with-docs` → PRD → issues → triage → docs-PR flow inline in this main session.
+Run the scope-review-gated design flow in this main session. The verdict routes to one of three paths:
+
+- **TASK** — grill → docs-PR (no tracker machinery)
+- **EPIC** — grill → `/to-spec` → `/to-tickets` → triage → docs-PR (full flow)
+- **INITIATIVE** — decompose into epics → halt (child sessions per epic)
 
 ## When to invoke
 
@@ -30,55 +34,53 @@ Pick a short kebab-case slug for the feature (e.g. `payment-retry`, `multi-tenan
 - `pwd`, current git branch, repo root.
 - Any file paths, constraints, or seed goals the human mentioned so far.
 
-### 2. Run grill-with-docs
+### 2. Scope gate (route on the scope-review verdict)
 
-Invoke the `grill-with-docs` skill directly in this session. Interview the human relentlessly about every aspect of the design, challenge decisions against the domain model, and crystallise terminology in CONTEXT.md/ADRs.
+Invoke the `scope-review` skill on the goal as stated, then route on its tier verdict:
 
-Do not stop grilling until the human signals they are satisfied.
+- **TASK** → **lightweight session.** Continue to step 3 and grill until the single-PR scope is crisp. Then skip steps 4–6 entirely — no spec issue, no tickets, no epic, no triage — and go straight to step 7 (docs PR, only if ADRs/glossary crystallised during grilling). The grilled conversation is the spec: dispatch implementation afterwards as a single Workflow A background agent carrying the sharpened scope.
+- **EPIC** → **full session.** Run steps 3–7 in order: grill with live research → spec → tickets → triage → docs-PR.
+- **INITIATIVE** → **decomposition mode, then halt.** Apply the research rule (step 3) to any domain facts you lean on while decomposing — verify, don't assume. Grill the human on scope boundaries and epic order ONLY — never design inside any epic. Publish one epic issue per resulting epic, in order, on the tracker. Then **halt** and request one fresh `/design-session` per epic. Each child re-runs this gate on its epic; a well-split epic verdicts EPIC and proceeds through the full flow.
 
-### 3. Write the PRD (and make it the coordination home)
+### 3. Grill with live research
 
-Invoke `/to-prd` to synthesize the grilling into a PRD and publish it to the project issue tracker. The PRD is the durable spec — the "what & why" (problem, solution, user stories) plus the Implementation Decisions and Testing Decisions sections, which carry what used to be a separate implementation plan. Present it to the human for approval and iterate until approved.
+Invoke the `grill-with-docs` skill directly in this session. Interview the human relentlessly about every aspect of the design, challenge decisions against the domain model, and crystallise terminology in CONTEXT.md/ADRs. Do not stop grilling until the human signals they are satisfied.
 
-The published PRD issue is **also the parent**: child issues (step 5) link directly to it as their parent, so it doubles as the **live coordination home and working ledger** for the initiative — the single object that answers "where is this initiative as a whole, and where do executing agents record what they produce." Once the PRD is approved, append these sections to its issue body:
+**Research rule (model- and agent-agnostic, active throughout the grilling):** hallucinated facts are the biggest risk in a design session. Never let an external fact into the spec or an ADR on model memory alone.
 
-- **Child checklist** — a placeholder section (populated in step 5 once children are published) using the tracker's native sub-issue/task-list syntax. Flag the HITL (`ready-for-human`) slices.
-- **Handoffs** — a table with one row per *cross-slice* value that one slice produces and a sibling slice consumes (e.g. an export timestamp a downstream consumer must start from, baseline counts a validation slice checks against, root-caused rejects a loader must handle). Leave the values **blank**; the executing agents fill each in as its slice completes. This is what stops per-run state from stranding in ad-hoc files or dying in a closed child issue.
-- **Results** — the durable, *cross-initiative* learnings the initiative exists to produce (sizing numbers, measured throughput/duration, anything that informs the *next* similar effort). Left blank now; filled as the work lands.
-- **Definition of done** — must explicitly include: "promote the Results section into the repo (ADR/docs) via a docs-PR before closing this issue" (see Results promotion below).
+- Any **load-bearing external fact** — API behavior, version limits, quotas, pricing, error semantics, benchmark numbers, third-party library contracts — must be verified via the agent's available web research tooling (e.g. `/research`, `/bx`, `find-docs` — use whatever search capability this agent has) **before** it enters the spec or an ADR.
+- **Codebase facts** are verified by reading the code, not by memory.
+- If research tooling is unavailable or results are inconclusive, record the fact in the spec explicitly tagged `UNVERIFIED:` as an assumption to verify during implementation — never silently asserted.
 
-Record the PRD issue's URL/ID — you will pass it to `/to-issues` in the next step as the parent.
+**ADR authority:** ADRs are created only under the `domain-modeling` skill's three gates (hard to reverse, surprising without context, result of a real trade-off) and its `ADR-FORMAT.md`; CONTEXT.md follows `CONTEXT-FORMAT.md` and holds glossary only. Do not invent ad-hoc ADR formats.
 
-The Handoffs/Results sections distinguish what the PRD issue *can* hold (live, within-initiative coordination) from what must outlive it (durable learnings) — the latter only become safe once promoted into the repo at close.
+### 4. Write the spec (and make it the coordination home)
 
-### 4. Break into issues and establish hierarchy
+Invoke `/to-spec` to synthesize the grilling into a spec and publish it to the project issue tracker. The spec is the durable "what & why" (problem, solution, user stories) plus the Implementation Decisions and Testing Decisions sections. Present it to the human for approval and iterate until approved.
 
-Invoke `/to-issues` to break the approved PRD into vertical-slice issues on the project issue tracker. Quiz the human on granularity, dependencies, and HITL vs AFK classification until they approve the breakdown, then publish the issues in dependency order **with the PRD issue set as their parent** using the tracker's native mechanism:
+The published spec issue is **also the live coordination home and working ledger** for the initiative — the single object that answers "where is this initiative as a whole, and where do executing agents record what they produce." Once the spec is approved, append these sections to its issue body:
 
-- **GitHub**: create each issue with `gh issue create`, then immediately link it as a sub-issue of the PRD issue via `gh api` (sub-issue API) or add it to the PRD issue's tasklist using `- [ ] #<number>` syntax in its body.
-- **Linear**: pass `parentId: <prd-issue-id>` when creating each issue via the API.
-- **Jira**: set the `parent` field to the PRD/epic issue key when creating each story.
+- **Child checklist** — a placeholder section (populated in step 5 once tickets are published) using the tracker's native task-list syntax. HITL (`ready-for-human`) flags are added by the triage step (step 6), not here.
+- **Handoffs** — a table with one row per *cross-slice* value that one slice produces and a sibling slice consumes (e.g. an export timestamp a downstream consumer must start from, baseline counts a validation slice checks against, root-caused rejects a loader must handle). Leave the values **blank**; the executing agents fill each in as its slice completes. This is what stops per-run state from stranding in ad-hoc files or dying in a closed child ticket.
 
-After all child issues are published, update the PRD issue's child checklist section with links to every slice issue in dependency order, flagging HITL (`ready-for-human`) slices. Verify the tracker shows the children nested under the PRD issue before proceeding.
+Record the spec issue's URL/ID — you will pass it to `/to-tickets` in the next step.
 
-### 5. Triage issues
+### 5. Break into tickets and establish blocking edges
 
-Invoke `/triage` for each published child issue. For each one: recommend a category (`bug` / `enhancement`) and state (`ready-for-agent` / `ready-for-human` / `needs-info`), post an agent brief if moving to `ready-for-agent`. Each brief **must name the PRD issue and point writers at its Handoffs/Results sections**, so executing agents know where to record what they find. Work through all issues before moving on.
+Invoke `/to-tickets` to break the approved spec into tracer-bullet vertical-slice tickets on the project issue tracker. Quiz the human on granularity and dependencies until they approve the breakdown, then publish the tickets in dependency order using the tracker's native **blocking-edges** mechanism — each ticket declares the tickets that block it. Do not classify HITL vs AFK in this step — that decision belongs to triage (step 6). Do not use parent-child linking; the spec issue's child checklist is the flat index, and the epic issue (if this session was launched from a decomposition) carries the higher-level slice structure.
 
-### 6. Docs PR
+After all tickets are published, update the spec issue's child checklist section with links to every ticket in dependency order — without HITL flags; triage adds them next.
 
-Raise a PR for any ADR and docs changes (CONTEXT.md, ADRs, or other documentation) crystallised during the grilling session. In the same PR, **stub a "Measured results" section (or per-instance table) in the ADR** — left empty with a note that it is filled at initiative close — as the durable destination for the PRD issue's Results. Create a worktree, commit the changed docs files, open the PR, and report the PR URL.
+### 6. Triage tickets
 
-## Results promotion (at initiative close)
+Invoke `/triage` for each published ticket. For each one: recommend a category (`bug` / `enhancement`) and state (`ready-for-agent` / `ready-for-human` / `needs-info`), post an agent brief if moving to `ready-for-agent`. This is where HITL vs AFK classification happens — `ready-for-human` is HITL, `ready-for-agent` is AFK. Each brief **must name the spec issue and point writers at its Handoffs section**, so executing agents know where to record what they find. Work through all tickets, then flag the `ready-for-human` tickets in the spec issue's child checklist.
 
-This step runs **after** execution completes — not during the design session — but the design session sets it up (steps 3 and 6) so it cannot be forgotten. Whoever closes the initiative:
+### 7. Docs PR
 
-1. Reads the now-filled **Results** section of the PRD issue.
-2. Promotes those durable learnings into the ADR's "Measured results" stub via a docs-PR (same worktree + PR convention as step 7).
-3. Only then closes the PRD issue.
-
-Rationale: the PRD issue closes and drops out of every agent's working context, and is neither version-controlled nor co-located with the tooling the next initiative reuses. Learnings whose job is to feed the *next* effort must live in the repo before the initiative's working context evaporates.
+Raise a PR for any ADR and docs changes (CONTEXT.md, ADRs, or other documentation) crystallised during the grilling session — in the `domain-modeling` skill's formats, per step 3. Create a worktree, commit the changed docs files, open the PR, and report the PR URL.
 
 ## Notes
 
 - Do NOT execute any implementation — that is dispatched separately from the main session as a Workflow A background agent after this design session completes.
+- The INITIATIVE route (step 2) halts the session after the epics are published. Implementation still flows through child sessions — never resume a halted parent session to design epic internals.
+- TASK sessions skip the tracker machinery by design: the grilled conversation is the spec, handed to a single Workflow A implementer.
