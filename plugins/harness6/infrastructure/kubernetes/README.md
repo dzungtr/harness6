@@ -49,6 +49,33 @@ Secret/derivation contract (consumed by slices #44–#47):
 
 Fresh start: no data migration from the Compose stack.
 
+## Data protection (Retain)
+
+The Neo4j data PVC uses the cluster's **default StorageClass** by default
+(spec #42 user story 8), which on most distributions has
+`reclaimPolicy: Delete` — deleting the PVC would drop the Graphiti graph.
+The Neo4j community chart (5.26.x) exposes no `reclaimPolicy` knob, so to
+get `Retain` protection, create a StorageClass yourself and point the stack
+at it:
+
+```sh
+kubectl apply -f - <<'EOF'
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: harness6-retain
+provisioner: <your-provisioner>   # e.g. kubernetes.io/aws-ebs, rancher.io/local-path (set reclaimPolicy)
+reclaimPolicy: Retain
+EOF
+```
+
+then set `neo4jStorageClass: 'harness6-retain'` in `values-user.yaml` (or in
+`values/neo4j.yaml`). `deploy.sh` then provisions the data PVC via the
+chart's `dynamic` volume mode against that class. Sizing note (spec #42
+story 24): the Neo4j chart forces `requests == limits` (500m/2Gi minimums);
+dropping hard limits is not supported by the chart — documented deviation,
+recorded in spec #42's Handoffs.
+
 Run the tests before touching the bootstrap script:
 
 ```sh
