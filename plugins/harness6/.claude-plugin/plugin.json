@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "harness6",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "harness6 workflow skills (agentic memory, design session, memsearch, scope review, etc.) plus the infrastructure/ docker-compose stack (SigNoz, Graphiti memory) brought up by the harness6-init skill. Self-contained under plugins/harness6/ in a multi-plugin distribution repo.",
   "author": {
     "name": "dzungtr",
