@@ -49,8 +49,7 @@ plugins/harness6/
 ├── skills/                         # workflow skills (13 dirs)
 ├── infrastructure/                 # docker-compose.yml, .env.example, signoz/
 ├── hooks/                          # SessionStart hook (Codex + Claude Code)
-│   ├── hooks.json                  # Codex hooks config (auto-discovered)
-│   ├── claude/hooks.json           # Claude Code hooks config (manifest-declared)
+│   ├── hooks.json                  # shared hooks config, auto-discovered by both agents
 │   ├── loader.py                   # shared stdlib-only loader, +x
 │   ├── validate.py                 # plugin self-check (6 checks)
 │   ├── test_loader.py              # loader unit tests

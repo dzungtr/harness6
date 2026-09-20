@@ -1,12 +1,13 @@
 # Harness 6 — Agent operating instructions
 
-This file organises agent instructions around the five pillars of harness infrastructure; every project using harness6 follows this structure.
+This file organises agent instructions around the six pillars of harness infrastructure; every project using harness6 follows this structure.
 
 1. Memory — retrieve durable knowledge and preserve ambient progress-state.
 2. Backlog management — keep initiatives and executable work in GitHub Issues.
 3. Codebase — isolate changes in worktrees and deliver every unit through a PR.
 4. Environment — give agents a short, observable feedback loop for their changes.
 5. Agent Observability — use telemetry to improve agent behaviour over time.
+6. Guardrail and constraints sandbox — run autonomous agents inside a deterministic policy sandbox.
 
 ## Response style
 
