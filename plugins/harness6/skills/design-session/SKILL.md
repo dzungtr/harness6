@@ -59,20 +59,20 @@ Invoke `/to-spec` to synthesize the grilling into a spec and publish it to the p
 
 The published spec issue is **also the live coordination home and working ledger** for the initiative — the single object that answers "where is this initiative as a whole, and where do executing agents record what they produce." Once the spec is approved, append these sections to its issue body:
 
-- **Child checklist** — a placeholder section (populated in step 5 once tickets are published) using the tracker's native task-list syntax. Flag the HITL (`ready-for-human`) slices.
+- **Child checklist** — a placeholder section (populated in step 5 once tickets are published) using the tracker's native task-list syntax. HITL (`ready-for-human`) flags are added by the triage step (step 6), not here.
 - **Handoffs** — a table with one row per *cross-slice* value that one slice produces and a sibling slice consumes (e.g. an export timestamp a downstream consumer must start from, baseline counts a validation slice checks against, root-caused rejects a loader must handle). Leave the values **blank**; the executing agents fill each in as its slice completes. This is what stops per-run state from stranding in ad-hoc files or dying in a closed child ticket.
 
 Record the spec issue's URL/ID — you will pass it to `/to-tickets` in the next step.
 
 ### 5. Break into tickets and establish blocking edges
 
-Invoke `/to-tickets` to break the approved spec into tracer-bullet vertical-slice tickets on the project issue tracker. Quiz the human on granularity, dependencies, and HITL vs AFK classification until they approve the breakdown, then publish the tickets in dependency order using the tracker's native **blocking-edges** mechanism — each ticket declares the tickets that block it. Do not use parent-child linking; the spec issue's child checklist is the flat index, and the epic issue (if this session was launched from a decomposition) carries the higher-level slice structure.
+Invoke `/to-tickets` to break the approved spec into tracer-bullet vertical-slice tickets on the project issue tracker. Quiz the human on granularity and dependencies until they approve the breakdown, then publish the tickets in dependency order using the tracker's native **blocking-edges** mechanism — each ticket declares the tickets that block it. Do not classify HITL vs AFK in this step — that decision belongs to triage (step 6). Do not use parent-child linking; the spec issue's child checklist is the flat index, and the epic issue (if this session was launched from a decomposition) carries the higher-level slice structure.
 
-After all tickets are published, update the spec issue's child checklist section with links to every ticket in dependency order, flagging HITL (`ready-for-human`) tickets.
+After all tickets are published, update the spec issue's child checklist section with links to every ticket in dependency order — without HITL flags; triage adds them next.
 
 ### 6. Triage tickets
 
-Invoke `/triage` for each published ticket. For each one: recommend a category (`bug` / `enhancement`) and state (`ready-for-agent` / `ready-for-human` / `needs-info`), post an agent brief if moving to `ready-for-agent`. Each brief **must name the spec issue and point writers at its Handoffs section**, so executing agents know where to record what they find. Work through all tickets before moving on.
+Invoke `/triage` for each published ticket. For each one: recommend a category (`bug` / `enhancement`) and state (`ready-for-agent` / `ready-for-human` / `needs-info`), post an agent brief if moving to `ready-for-agent`. This is where HITL vs AFK classification happens — `ready-for-human` is HITL, `ready-for-agent` is AFK. Each brief **must name the spec issue and point writers at its Handoffs section**, so executing agents know where to record what they find. Work through all tickets, then flag the `ready-for-human` tickets in the spec issue's child checklist.
 
 ### 7. Docs PR
 
