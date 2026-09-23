@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.12] - 2026-09-10
+
+Patch release making the remaining two SigNoz query skills agent-agnostic.
+
+### Changed
+
+- **`signoz-token-cost-queries` rewritten as a discover → query → cache skill** — live audit found zero `litellm` traces in 7d and all `gen_ai.usage.total_tokens` / `gen_ai.cost.*` / `litellm.model_group` attributes gone; its whole Quick Reference was dead. The skill now discovers the gateway service and token/cost attributes at runtime, degrades honestly when no cost attributes exist (report usage, route dollar questions to provider billing — never tokens×guessed-price), adds the `signoz_list_services` under-reports gotcha, and caches structural facts to agentic memory (`group_id="global"`).
+- **`signoz-session-lookback-queries` rewritten as agent-agnostic** — live audit found traces-side recipes dead (no `claude-code`/`litellm` spans, no `session.id` on traces, no `gen_ai.input/output.messages`) while the logs side still flows. The skill now checks where the session id lives (traces vs logs), verifies service export with direct aggregate counts, re-derives the logs event taxonomy per environment, and keeps the still-valid tool gotchas (raw list tools drop custom attributes; aggregate `groupBy`-as-select; `get_trace_details` size overflow; logs payload row shape; saved-file fallback for large pulls). Stale hardcoded "Verified result" snapshots replaced with the discover → cache loop.
+- **Claude-specific `claude mcp list` approval note removed** from all three signoz skills; phrased generically as pending-approval MCP server status.
+
 ## [0.3.11] - 2026-09-10
 
 Patch release making the SigNoz self-improvement skill agent-agnostic.
