@@ -10,8 +10,8 @@
   "plugins": [
     {
       "name": "harness6",
-      "description": "harness6 workflow skills plus the infrastructure/ docker-compose stack (SigNoz, Graphiti memory). The harness6-init skill scaffolds infrastructure/.env from .env.example and brings the compose stack up. Self-contained under plugins/harness6/.",
-      "version": "0.3.10",
+      "description": "harness6 workflow skills plus the infrastructure/ docker-compose stack (SigNoz, Graphiti memory). The init skill scaffolds infrastructure/.env from .env.example and brings the compose stack up. Self-contained under plugins/harness6/.",
+      "version": "0.3.11",
       "author": {
         "name": "dzungtr",
         "url": "https://github.com/dzungtr"

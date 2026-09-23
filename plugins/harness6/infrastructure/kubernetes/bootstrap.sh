@@ -8,7 +8,7 @@
 #   3. creates the `harness6-secrets` Secret via `kubectl create secret
 #      generic` from .env keys at deploy time (no Secret YAML is ever
 #      committed).
-# Consumed by harness6-init's Kubernetes path (slice #47) after the
+# Consumed by init's Kubernetes path (slice #47) after the
 # kubectl/helm/cluster-reachability checks.
 set -euo pipefail
 
