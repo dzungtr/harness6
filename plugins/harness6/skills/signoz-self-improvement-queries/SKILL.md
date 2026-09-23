@@ -1,5 +1,5 @@
 ---
-name: harness6-signoz-self-improvement-queries
+name: signoz-self-improvement-queries
 description: Use when conversations involve self-improvement topics — permission friction, slow tool responses, high token usage, cache efficiency, recurring workflow patterns, or session cadence — investigated from SigNoz via the cc-observability MCP server. Agent-agnostic: discover the telemetry schema first, then investigate.
 ---
 

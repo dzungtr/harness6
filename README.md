@@ -30,7 +30,7 @@ codex plugin install auto-review   # permission auto-review hook
 
 ### Post-install (harness6)
 
-After installing `harness6`, run the **`harness6-init`** skill — it scaffolds
+After installing `harness6`, run the **`init`** skill — it scaffolds
 `infrastructure/.env` from `.env.example`, brings up the shared compose stack,
 and waits for the SigNoz healthcheck. Once the stack is up:
 

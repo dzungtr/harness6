@@ -10,13 +10,13 @@ harnesses with no duplication.
 
 | Path | Purpose |
 |------|---------|
-| `skills/` | Workflow skills: `design-session`, `scope-review`, `agentic-memory-*`, `memsearch-*`, `harness6-init`, `autobot`, `signoz-self-improvement-queries`, `signoz-session-lookback-queries`, `signoz-token-cost-queries`, `pr-merged-cleanup` |
+| `skills/` | Workflow skills: `design-session`, `scope-review`, `agentic-memory-*`, `memsearch-*`, `init`, `autobot`, `signoz-self-improvement-queries`, `signoz-session-lookback-queries`, `signoz-token-cost-queries`, `pr-merged-cleanup` |
 | `infrastructure/` | Docker Compose stack + configs (SigNoz, OTel collector, Graphiti memory) |
 | `hooks/` | `SessionStart` hook (Codex + Claude Code) + bundled `references/harness6.md` |
 | `.codex-plugin/plugin.json` | Codex plugin manifest |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest |
 
-After a fresh install, run the **`harness6-init`** skill — it scaffolds
+After a fresh install, run the **`init`** skill — it scaffolds
 `infrastructure/.env` from `.env.example`, brings up the shared compose stack,
 and waits for the SigNoz healthcheck. Once the stack is up:
 
@@ -65,7 +65,7 @@ subfolder (ADR 0007) requires no install-side change.
 
 ## Plugin-root resolution
 
-`harness6-init` resolves its root from `PLUGIN_ROOT` (Codex) or
+`init` resolves its root from `PLUGIN_ROOT` (Codex) or
 `CLAUDE_PLUGIN_ROOT` (Claude Code), then expects `infrastructure/` directly
 under that root. Both harnesses set the env var to the installed plugin's own
 directory, so the relocation is transparent to the skill.
