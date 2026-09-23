@@ -15,7 +15,7 @@ attribute names. Different agents emit different telemetry shapes (an
 OpenTelemetry-instrumented CLI agent, a gateway like LiteLLM, etc.), and the
 schema drifts over time.
 
-Instead, follow the **discover → query → cache** loop:
+Follow the **discover → query → cache** loop:
 
 1. **Discover** the actual telemetry structure with schema tools.
 2. **Query** with the discovered names.
