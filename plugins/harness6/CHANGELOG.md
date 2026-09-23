@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.11] - 2026-09-10
+
+Patch release making the SigNoz self-improvement skill agent-agnostic.
+
+### Changed
+
+- **`signoz-self-improvement-queries` rewritten as a discover → query → cache skill** — dropped all hardcoded agent telemetry (`claude-code` service name, `claude_code.*` span names, `decision`/`session.id` attributes), which had drifted out of existence and made 4 of 5 recipes fail live. The skill now: (1) reads previously verified schema facts from agentic memory (`group_id="global"`) with a cheap spot-check to detect staleness, (2) discovers the actual telemetry structure via `signoz_list_services` / `signoz_get_service_top_operations` / `signoz_get_field_keys` / `signoz_get_field_values`, (3) maps self-improvement questions (permission friction, latency, tokens/cache, workflow patterns, session cadence) to discovered span names via an intent→aggregation table, and (4) persists structural findings back to agentic memory so future sessions skip discovery and save tokens.
+- **Anti-staleness rules added** — never cache result numbers (only schema structure), never use a name not confirmed in-session or spot-checked from memory, and note that attribute coverage varies per span kind (e.g. gate spans may carry a decision but not a tool name).
+
 ## [0.3.10] - 2026-09-10
 
 Patch release redesigning the design-session flow and scope-review into a verdict-routed, context-safe pipeline.
