@@ -104,9 +104,39 @@ Tell the agent, in its prompt:
 6. Write to `<scratchpad>/reports/<slug>-YYYY-MM-DD.md`.
 7. Return **only** the file path plus a ≤5-line summary.
 
-## Step 3 — hand it back
+## Step 3 — push it to aurora for review
 
-Report the path and the agent's summary. Nothing else.
+The report file alone is not enough — the user reads in a browser, not a
+terminal. Push the finished report to the **aurora MCP server** (the
+artifact-review web server, `aurora_push_markdown` and friends) and hand back
+the deep link alongside the path:
+
+```
+aurora_push_markdown(
+  session_id = "report-<slug>",        # stable per-topic session, reusable on revision
+  artifact_id = "<slug>-YYYY-MM-DD",   # in-place replace when re-running the same report
+  title = "<Topic> — <YYYY-MM-DD>",
+  content = <full report markdown>,    # read from disk; never re-generate it
+)
+```
+
+- **One session per topic** (`report-<slug>`): re-running or revising a report
+  replaces its artifact in place instead of spawning duplicate sessions.
+- **Push what aurora renders better than markdown.** If the report (or the
+  brief) contains a diagram or data series, additionally push it via
+  `aurora_push_mermaid` / `aurora_push_chart` into the same session — the
+  rendered preview is the point of aurora; a fenced code block is not.
+- **Never paste the report body into the terminal.** The ≤10-line answer plus
+  the path and the aurora deep link is the entire handoff.
+
+If the `aurora` MCP server is unavailable (not registered or the compose
+service is down), say so in one line and still hand back the path — the
+markdown file is the artifact of record, aurora is the review surface.
+
+## Step 4 — hand it back
+
+Report the path, the agent's ≤5-line summary, and the aurora deep link.
+Nothing else.
 
 ## Report template
 
@@ -147,5 +177,7 @@ headings.
   main session. Point at it instead.
 - **Agent exploring beyond the pointers.** Costs time and pulls in unrelated
   material. Pointers are the whole reading list.
+- **Skipping the aurora push.** The user asked to read it later — give them a
+  deep link to click, not just a path to remember.
 - **Report replacing the short answer.** Answer first, always. The report is the
   door, not the doorway.

@@ -40,7 +40,7 @@ import sys
 from pathlib import Path
 from typing import Callable, List, Tuple
 
-EXPECTED_VERSION = "0.3.11"
+EXPECTED_VERSION = "0.4.0"
 
 
 def default_plugin_root() -> Path:

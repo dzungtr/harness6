@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0] - 2026-09-22
+
+Minor release adding the aurora artifact-review MCP server to the infrastructure stack and wiring it into the report + init skills.
+
+### Added
+
+- **`aurora` compose service** — artifact-review web server (`ghcr.io/dzungtr/aurora`, pinned via `AURORA_TAG`, default `0.1.0`), loopback-only on `${AURORA_HTTP_PORT:-7634}`, MCP HTTP endpoint at `http://localhost:7634/mcp`. Artifacts persist in the `aurora_artifacts` named volume; `AURORA_MCP_URL` documented in `.env.example`.
+- **`report` skill Step 3 now pushes to aurora** — finished reports are pushed via `aurora_push_markdown` (one `report-<slug>` session per topic, `artifact_id` replace on re-run) with the deep link handed back alongside the file path; diagrams/data series additionally pushed via `aurora_push_mermaid`/`aurora_push_chart`. Degrades to path-only with a one-line notice when the server is unreachable.
+- **`init` section 6b** — registers the aurora MCP server at **user scope, globally** (`claude mcp add --scope user --transport http aurora <url>`), after a reachability probe and an existing-registration check; skipped with an explanation on the Kubernetes path (aurora is Compose-only today).
+
+### Changed
+
+- **Plugin version bump** — manifests, `hooks/validate.py` `EXPECTED_VERSION`, and the marketplace entry to `0.4.0`.
+
 ## [0.3.11] - 2026-09-10
 
 Patch release making all three SigNoz query skills agent-agnostic and dropping the redundant skill-name prefix.
@@ -84,6 +98,26 @@ Patch release bumping the harness6 plugin version to 0.3.6.
 - **Plugin version bump** — `plugins/harness6` manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`), `hooks/validate.py` `EXPECTED_VERSION`, and the marketplace plugin entry bumped to `0.3.6`.
 - **`README.md` and `hooks/references/harness6.md`** — updated the skills list and observability-reflection guidance to reference the three new signoz-*-queries skills instead of `self-improvement`.
 
+## [0.3.6] - 2026-08-29
+
+Patch release fixing the agentic-memory group_id normalization spec and scrubbing
+third-party organization references.
+
+### Changed
+
+- **Explicit group_id normalization** — `agentic-memory-read` (Scope resolution) and
+  `agentic-memory-write` (Write scope) now require normalizing every component before
+  joining: replace `-`, `.`, `#`, whitespace with `_` and lowercase, e.g.
+  `acme-org/payments-service` → `acme_org_payments_service`. Previously only the join
+  separator was specified, so owner/repo names containing dashes could yield
+  non-compliant group_ids. Convention matches the project-wide naming rule.
+- **Third-party reference scrub** — replaced `oolio-group/oolio-one-gitops` and
+  `oolio-one/sandbox` examples in the memory skills and hook reference with generic
+  placeholders (`acme-org/payments-service`).
+- **Plugin version bump** — `0.3.5` → `0.3.6` across `.claude-plugin/plugin.json`,
+  `.codex-plugin/plugin.json`, `hooks/validate.py`, `hooks/test_validate.py`, and the
+  marketplace plugin entry.
+
 ## [0.3.5] - 2026-08-24
 
 Patch release bumping the harness6 plugin version to 0.3.5.
@@ -113,26 +147,6 @@ Patch release updating the `autobot` skill's post-merge flow, the `design-sessio
 
 - **design-session frontmatter** — quoted the `description` field so the embedded `SKIP for:` colon no longer breaks YAML parsing (`mapping values are not allowed in this context`).
 
-## [0.3.6] - 2026-08-29
-
-Patch release fixing the agentic-memory group_id normalization spec and scrubbing
-third-party organization references.
-
-### Changed
-
-- **Explicit group_id normalization** — `agentic-memory-read` (Scope resolution) and
-  `agentic-memory-write` (Write scope) now require normalizing every component before
-  joining: replace `-`, `.`, `#`, whitespace with `_` and lowercase, e.g.
-  `acme-org/payments-service` → `acme_org_payments_service`. Previously only the join
-  separator was specified, so owner/repo names containing dashes could yield
-  non-compliant group_ids. Convention matches the project-wide naming rule.
-- **Third-party reference scrub** — replaced `oolio-group/oolio-one-gitops` and
-  `oolio-one/sandbox` examples in the memory skills and hook reference with generic
-  placeholders (`acme-org/payments-service`).
-- **Plugin version bump** — `0.3.5` → `0.3.6` across `.claude-plugin/plugin.json`,
-  `.codex-plugin/plugin.json`, `hooks/validate.py`, `hooks/test_validate.py`, and the
-  marketplace plugin entry.
-
 ## [0.3.3] - 2026-08-23
 
 Patch release bumping the harness6 plugin version to 0.3.3.
@@ -142,18 +156,18 @@ Patch release bumping the harness6 plugin version to 0.3.3.
 - **Plugin version bump** — `plugins/harness6` manifests (`.claude-plugin/plugin.json`,
   `.codex-plugin/plugin.json`), `hooks/validate.py` `EXPECTED_VERSION`, and the marketplace
   plugin entry bumped to `0.3.3`. No functional behaviour change.
-- **harness6-init setup** — selects Docker or Podman interactively when both are installed,
+- **init setup** — selects Docker or Podman interactively when both are installed,
   starts Compose with explicit environment and Compose file arguments, safely registers the
   repository MCP configuration at user or project scope, and guides explicit Milvus and embedding
   provider configuration through `memsearch-init`.
 
 ## [0.3.2] - 2026-08-09
 
-Patch release for the harness6-init setup workflow.
+Patch release for the init setup workflow.
 
 ### Changed
 
-- Added runtime selection, safe MCP registration, and memsearch setup guidance to harness6-init.
+- Added runtime selection, safe MCP registration, and memsearch setup guidance to init.
 
 ### Removed
 
@@ -184,7 +198,7 @@ plugin install name changes from `harness5` to `harness6`.
 - **Plugin rename** — `plugins/harness5/` renamed to `plugins/harness6/`.
   All manifest names, marketplace entries, skill names, env vars, hooks,
   references, tests, and documentation updated to `harness6`.
-- **Skill rename** — `harness5-init` → `harness6-init`. The
+- **Skill rename** — `harness5-init` → `init`. The
   `HARNESS5_PLUGIN_ROOT` env var is now `HARNESS6_PLUGIN_ROOT`.
 - **Hook env var** — `HARNESS5_INSTRUCTIONS_FILE` →
   `HARNESS6_INSTRUCTIONS_FILE`. The loader stderr prefix changed from

@@ -238,6 +238,37 @@ the source, report that it is already installed and do not copy it. If the sourc
 be found at the repository root, report the path and skip registration rather than inventing config.
 The copied entries must retain the HTTP URLs (including `/mcp/` for agentic-memory).
 
+## 6b. Register the aurora MCP server at user scope (both paths)
+
+Aurora is the artifact-review web server (see `skills/report/SKILL.md`). Unlike the repository
+servers above, it is deliberately registered at **user scope, globally** — artifact review is not
+repo-specific, and every session that produces a report or diagram should be able to hand the user
+a review deep link. This registration is separate from, and additional to, the `.mcp.json` copy in
+section 6, and happens even when the user picked **project** scope there.
+
+Before registering, verify the service is reachable (on the Compose path it is published at
+`http://localhost:${AURORA_HTTP_PORT:-7634}/mcp` by docker-compose.yml): probe
+`${AURORA_MCP_URL:-http://localhost:7634/mcp}` and expect HTTP 405 on a bare GET or a valid MCP
+`initialize` response on POST. If it is unreachable, report the URL and stop before registering —
+never register an MCP server that is not responding.
+
+Then check for an existing registration first and do not silently overwrite one:
+
+```bash
+current=$(claude mcp get aurora 2>/dev/null || true)
+```
+
+If `current` already names the aurora server, show its existing URL and ask whether to update it
+(`claude mcp remove aurora --scope user` then re-add) or leave it. If absent, register it:
+
+```bash
+claude mcp add --scope user --transport http aurora "${AURORA_MCP_URL:-http://localhost:7634/mcp}"
+```
+
+Note for the Kubernetes path (section 3c): the Kubernetes manifests do not currently deploy aurora —
+it exists only in the Compose stack. If the user chose Kubernetes and has no locally-running aurora,
+skip this registration with a one-line explanation rather than registering a dead URL.
+
 ## 7. Set up memsearch (both paths)
 
 Offer to run the `memsearch-init` skill from the repository root. Follow that skill's confirmation
