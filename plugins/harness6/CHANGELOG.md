@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0] - 2026-09-22
+
+Minor release adding the aurora artifact-review MCP server to the infrastructure stack and wiring it into the report + init skills.
+
+### Added
+
+- **`aurora` compose service** — artifact-review web server (`ghcr.io/dzungtr/aurora`, pinned via `AURORA_TAG`, default `0.1.0`), loopback-only on `${AURORA_HTTP_PORT:-7634}`, MCP HTTP endpoint at `http://localhost:7634/mcp`. Artifacts persist in the `aurora_artifacts` named volume; `AURORA_MCP_URL` documented in `.env.example`.
+- **`report` skill Step 3 now pushes to aurora** — finished reports are pushed via `aurora_push_markdown` (one `report-<slug>` session per topic, `artifact_id` replace on re-run) with the deep link handed back alongside the file path; diagrams/data series additionally pushed via `aurora_push_mermaid`/`aurora_push_chart`. Degrades to path-only with a one-line notice when the server is unreachable.
+- **`harness6-init` section 6b** — registers the aurora MCP server at **user scope, globally** (`claude mcp add --scope user --transport http aurora <url>`), after a reachability probe and an existing-registration check; skipped with an explanation on the Kubernetes path (aurora is Compose-only today).
+
+### Changed
+
+- **Plugin version bump** — manifests, `hooks/validate.py` `EXPECTED_VERSION`, and the marketplace entry to `0.4.0`.
+
 ## [0.3.10] - 2026-09-10
 
 Patch release redesigning the design-session flow and scope-review into a verdict-routed, context-safe pipeline.

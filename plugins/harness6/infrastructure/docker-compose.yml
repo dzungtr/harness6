@@ -326,6 +326,30 @@ services:
     healthcheck:
       disable: true
 
+  # Aurora — web server for artifact review. Agents push markdown / mermaid /
+  # image / chart artifacts through the `aurora` MCP server (HTTP transport at
+  # /mcp, backed by this service) and hand the returned deep link to the human
+  # for review — see plugins/harness6/skills/report/SKILL.md and the
+  # "Report review" line in the harness instructions.
+  #
+  # Runs the pinned ghcr.io/dzungtr/aurora image (bun runtime). The container's
+  # entrypoint is `bun cli.ts`; the workspace path + --port come via `command`.
+  # Artifacts live in a named volume so previews survive container recreation.
+  # Port is published loopback-only like every other service here (no auth on
+  # this local dev stack). MCP endpoint: http://localhost:7634/mcp
+  aurora:
+    image: ghcr.io/dzungtr/aurora:${AURORA_TAG:-0.1.0}
+    container_name: aurora
+    restart: unless-stopped
+    command: ["/workspace", "--port", "7634"]
+    volumes:
+      # Scratch workspace the CLI expects as its positional argument.
+      - aurora_workspace:/workspace
+      # Pushed artifacts (markdown/mermaid/image/chart snapshots) persist here.
+      - aurora_artifacts:/root/.local/share/aurora/artifacts
+    ports:
+      - "127.0.0.1:${AURORA_HTTP_PORT:-7634}:7634"
+
   # One-shot: creates/updates the signoz_* ClickHouse schemas. The collector
   # below gates its own start on `migrate sync check`, so ordering is safe.
   signoz-schema-migrator:
@@ -378,6 +402,10 @@ services:
       - "127.0.0.1:${SIGNOZ_OTLP_HTTP_PORT:-4318}:4318" # OTLP HTTP receiver
 
 volumes:
+  aurora_artifacts:
+    driver: local
+  aurora_workspace:
+    driver: local
   neo4j_data:
     driver: local
   signoz_clickhouse_data:
