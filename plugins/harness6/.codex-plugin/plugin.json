@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "harness6",
     "shortDescription": "harness6 workflow skills and local infra stack (OTel, SigNoz) for Claude Code and Codex.",
-    "longDescription": "harness6 is the harness6 workflow-skills and infrastructure plugin, packaged self-contained under plugins/harness6/. The same skills/ and infrastructure/ tree ships to both Claude Code and Codex. After a fresh install, run the harness6-init skill to scaffold infrastructure/.env from .env.example and bring the docker compose stack (OpenTelemetry collector, SigNoz) up as a shared local instance.",
+    "longDescription": "harness6 is the harness6 workflow-skills and infrastructure plugin, packaged self-contained under plugins/harness6/. The same skills/ and infrastructure/ tree ships to both Claude Code and Codex. After a fresh install, run the init skill to scaffold infrastructure/.env from .env.example and bring the docker compose stack (OpenTelemetry collector, SigNoz) up as a shared local instance.",
     "developerName": "dzungtr",
     "category": "Developer Tools",
     "capabilities": [

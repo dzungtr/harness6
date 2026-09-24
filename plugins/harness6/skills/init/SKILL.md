@@ -1,5 +1,5 @@
 ---
-name: harness6-init
+name: init
 description: >
   Initialize the shared harness6 infrastructure stack after installing the plugin. Resolve the
   plugin cache root from the active harness, choose a container runtime, scaffold infrastructure/.env
@@ -19,7 +19,7 @@ if [ -n "${PLUGIN_ROOT:-}" ]; then
 elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
   HARNESS6_PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
 else
-  printf '%s\n' 'harness6-init: no plugin root found. Run this skill from an installed harness6 plugin (PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT must be set).' >&2
+  printf '%s\n' 'init: no plugin root found. Run this skill from an installed harness6 plugin (PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT must be set).' >&2
   exit 1
 fi
 ```
@@ -27,7 +27,7 @@ fi
 Set `INFRA_ROOT` to `<HARNESS6_PLUGIN_ROOT>/infrastructure`. Halt with a clear error if that
 directory does not exist:
 
-> **harness6-init: infrastructure directory not found at `<HARNESS6_PLUGIN_ROOT>/infrastructure`.** Run this skill from an installed harness6 plugin. Aborting.
+> **init: infrastructure directory not found at `<HARNESS6_PLUGIN_ROOT>/infrastructure`.** Run this skill from an installed harness6 plugin. Aborting.
 
 ## 2. Choose the container runtime
 
@@ -40,7 +40,7 @@ command -v docker >/dev/null 2>&1 && DOCKER_AVAILABLE=true
 command -v podman >/dev/null 2>&1 && PODMAN_AVAILABLE=true
 ```
 
-- If neither is available, stop: `harness6-init: neither docker nor podman was found on PATH. Install one and retry.`
+- If neither is available, stop: `init: neither docker nor podman was found on PATH. Install one and retry.`
 - If only Docker is available, use `docker compose`.
 - If only Podman is available, use `podman compose`.
 - If both are available, ask the user which runtime to use and wait for an explicit choice. Default to
@@ -78,7 +78,7 @@ sed -n -E '/^[[:space:]]*#?[A-Z][A-Z0-9_]*=/p' "$ENV_EXAMPLE"
 
 Ask the user to fill or review every key shown and explicitly confirm when the secrets and other
 values are ready. Do not run Compose until the user confirms. If the user does not confirm, stop
-with `harness6-init was not started`. Never overwrite an existing `ENV_FILE`.
+with `init was not started`. Never overwrite an existing `ENV_FILE`.
 
 Do not run any Compose command before the environment confirmation in the next section.
 
@@ -107,9 +107,9 @@ Before anything else, verify `kubectl`, `helm`, and cluster reachability, haltin
 error when missing:
 
 ```bash
-command -v kubectl >/dev/null 2>&1 || { echo 'harness6-init: kubectl not found on PATH. Install kubectl and retry.' >&2; exit 1; }
-command -v helm   >/dev/null 2>&1 || { echo 'harness6-init: helm not found on PATH. Install helm and retry.' >&2; exit 1; }
-kubectl cluster-info >/dev/null 2>&1 || { echo 'harness6-init: no reachable Kubernetes cluster (kubectl cluster-info failed). Check kubeconfig and retry.' >&2; exit 1; }
+command -v kubectl >/dev/null 2>&1 || { echo 'init: kubectl not found on PATH. Install kubectl and retry.' >&2; exit 1; }
+command -v helm   >/dev/null 2>&1 || { echo 'init: helm not found on PATH. Install helm and retry.' >&2; exit 1; }
+kubectl cluster-info >/dev/null 2>&1 || { echo 'init: no reachable Kubernetes cluster (kubectl cluster-info failed). Check kubeconfig and retry.' >&2; exit 1; }
 ```
 
 ### 1. Namespace, Secrets, values-user.yaml (bootstrap)
@@ -169,7 +169,7 @@ mapfile -t COMPOSE_FILES < <(
     \( -name '*compose*.yml' -o -name '*compose*.yaml' \) -print | sort
 )
 if [ "${#COMPOSE_FILES[@]}" -ne 1 ]; then
-  printf '%s\n' "harness6-init: expected exactly one Compose file in $INFRA_ROOT; found:" >&2
+  printf '%s\n' "init: expected exactly one Compose file in $INFRA_ROOT; found:" >&2
   printf '  %s\n' "${COMPOSE_FILES[@]}" >&2
   exit 1
 fi
@@ -196,7 +196,7 @@ poll its health status until it is `healthy`. Do not treat `starting` as success
 ```bash
 SIGNOZ_CONTAINER_ID="$($CONTAINER_RUNTIME compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q signoz)"
 if [ -z "$SIGNOZ_CONTAINER_ID" ]; then
-  printf '%s\n' 'harness6-init: signoz container was not created. Aborting.' >&2
+  printf '%s\n' 'init: signoz container was not created. Aborting.' >&2
   exit 1
 fi
 for attempt in $(seq 1 60); do
@@ -205,12 +205,12 @@ for attempt in $(seq 1 60); do
     healthy) break ;;
     unhealthy)
       $CONTAINER_RUNTIME logs --tail 50 "$SIGNOZ_CONTAINER_ID" >&2 || true
-      printf '%s\n' 'harness6-init: signoz healthcheck is unhealthy. Aborting.' >&2
+      printf '%s\n' 'init: signoz healthcheck is unhealthy. Aborting.' >&2
       exit 1 ;;
     *)
       if [ "$attempt" -eq 60 ]; then
         $CONTAINER_RUNTIME logs --tail 50 "$SIGNOZ_CONTAINER_ID" >&2 || true
-        printf '%s\n' "harness6-init: timed out waiting for signoz healthcheck (status: ${HEALTH_STATUS:-unknown}). Aborting." >&2
+        printf '%s\n' "init: timed out waiting for signoz healthcheck (status: ${HEALTH_STATUS:-unknown}). Aborting." >&2
         exit 1
       fi
       sleep 5 ;;
