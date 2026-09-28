@@ -386,7 +386,7 @@ services:
       - -c
       - |
         /signoz-otel-collector migrate sync check &&
-        /signoz-otel-collector --config=/etc/otel-collector-config.yaml --manager-config=/etc/manager-config.yaml --copy-path=/var/tmp/collector-config.yaml
+        /signoz-otel-collector --config=/etc/otel-collector-config.yaml
     environment:
       OTEL_RESOURCE_ATTRIBUTES: host.name=signoz-host,os.type=linux
       LOW_CARDINAL_EXCEPTION_GROUPING: "false"
@@ -396,7 +396,6 @@ services:
       SIGNOZ_OTEL_COLLECTOR_TIMEOUT: 10m
     volumes:
       - ./signoz/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro,z
-      - ./signoz/otel-collector-opamp-config.yaml:/etc/manager-config.yaml:ro,z
     ports:
       - "127.0.0.1:${SIGNOZ_OTLP_GRPC_PORT:-4317}:4317" # OTLP gRPC receiver
       - "127.0.0.1:${SIGNOZ_OTLP_HTTP_PORT:-4318}:4318" # OTLP HTTP receiver
