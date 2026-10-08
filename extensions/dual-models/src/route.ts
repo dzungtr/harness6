@@ -80,7 +80,7 @@ export function createRouter(getConfig: () => ConfigResult, buildDigest: (opts?:
 
 		const sent = event === "prompt" ? withPrompt(buildDigest({ toolOutput: false }).state, request, config.digest.toolOutputTokens) : buildDigest().state;
 		const current = roleOfPrevious();
-		const span = startGateSpan({ event, system1Model: config.system1.model, sessionId: ctx.sessionManager.getSessionId(), previous: current, digestTokens: countTokens(sent), criteriaHash: config.criteriaHash });
+		const span = startGateSpan({ event, system1Model: config.system1.model, sessionId: ctx.sessionManager.getSessionId(), previous: current, digestTokens: countTokens(sent), criteriaHash: config.criteriaHash, models: { reasoning: config.reasoningModel, execution: config.executionModel } });
 		const outcome = await decide(sent, { ...config.system1, criteria: config.criteria, signal: request.signal });
 		if (outcome.ok) {
 			failures = 0;
