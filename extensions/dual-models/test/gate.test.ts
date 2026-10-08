@@ -64,6 +64,7 @@ afterEach(async () => {
 const notify = vi.fn();
 const ctx = {
 	ui: { notify },
+	sessionManager: { getSessionId: () => "sess-1" },
 	modelRegistry: { find: (p: string, id: string) => [DELIB, EXEC].find((m: any) => m.provider === p && m.id === id) },
 } as unknown as ExtensionContext;
 
