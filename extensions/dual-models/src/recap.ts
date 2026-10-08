@@ -47,11 +47,19 @@ function parseState(data: unknown): RecapState | undefined {
 }
 
 const DESCRIPTION = [
-	"Record the session Recap: your intent, your course of action, and significant events.",
-	"Write ONLY when the intent or course of action changes, or on a significant event: a blocker, a surprise, an off-plan finding, or a completed step.",
+	"Record the session Recap: your intent, your course of action, and significant events. The router reads it to decide how much reasoning each turn needs.",
+	"Write it once you understand the task and have settled on a course of action, then only when the intent or course of action changes or on a significant event: a blocker, a surprise, an off-plan finding, or a completed step.",
 	"Never write routinely or every turn. Keep entries brief: the Recap has a hard token budget, and an over-budget write is rejected and not stored.",
 	"Provide intent and courseOfAction to replace them; provide event to append one (the oldest events age out).",
 ].join(" ");
+
+const PROMPT_SNIPPET = "recap: Record your intent, course of action and significant events for model routing";
+
+const PROMPT_GUIDELINES = [
+	"Call recap as soon as you understand the task and have settled on a course of action, before you carry it out: set intent and courseOfAction.",
+	"Call recap again on a significant event: a blocker, a finding that changes your course of action, or a completed step. Update courseOfAction when it changes.",
+	"Do not call recap every turn, and keep each entry brief.",
+];
 
 /**
  * Register the `recap` tool (identical for both roles) and track the last tool output.
@@ -84,6 +92,8 @@ export function registerRecap(pi: ExtensionAPI, getBudgets: () => DigestBudgets)
 		name: "recap",
 		label: "Recap",
 		description: DESCRIPTION,
+		promptSnippet: PROMPT_SNIPPET,
+		promptGuidelines: PROMPT_GUIDELINES,
 		parameters: Type.Object({
 			intent: Type.Optional(Type.String({ description: "The current intent. Replaces the previous one." })),
 			courseOfAction: Type.Optional(Type.String({ description: "The current course of action. Replaces the previous one." })),
