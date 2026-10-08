@@ -43,6 +43,7 @@ afterEach(async () => {
 const notify = vi.fn();
 const ctx = {
 	ui: { notify },
+	sessionManager: { getSessionId: () => "s" },
 	modelRegistry: { find: (p: string, id: string) => [DELIB, EXEC].find((m: any) => m.provider === p && m.id === id) },
 } as unknown as ExtensionContext;
 
@@ -197,7 +198,7 @@ describe("compaction flag wiring", () => {
 			registerTool: () => {},
 			appendEntry: () => {},
 		} as never);
-		const full = { ...ctx, cwd: "/nonexistent", isProjectTrusted: () => false, sessionManager: { getBranch: () => [] } } as any;
+		const full = { ...ctx, cwd: "/nonexistent", isProjectTrusted: () => false, sessionManager: { getBranch: () => [], getSessionId: () => "s" } } as any;
 		const dir = mkdtempSync(join(tmpdir(), "dm-c-"));
 		writeFileSync(
 			join(dir, "settings.json"),
