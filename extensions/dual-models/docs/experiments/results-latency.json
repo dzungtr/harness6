@@ -1,0 +1,26 @@
+{
+ "latency": {
+  "digest_20tok": {
+   "chars": 42,
+   "approxTokens": 11,
+   "n": 30,
+   "min": 438,
+   "p50": 490,
+   "p90": 553,
+   "max": 629,
+   "failures": 0,
+   "over1500ms": 0
+  },
+  "digest_4k": {
+   "chars": 16044,
+   "approxTokens": 4011,
+   "n": 30,
+   "min": 463,
+   "p50": 509,
+   "p90": 603,
+   "max": 718,
+   "failures": 0,
+   "over1500ms": 0
+  }
+ }
+}

@@ -1,0 +1,75 @@
+{
+ "cache": {
+  "stubCalls": [
+   [
+    0.1,
+    0.9
+   ],
+   [
+    0.95,
+    0.05
+   ],
+   [
+    0.05,
+    0.95
+   ],
+   [
+    0.95,
+    0.05
+   ],
+   [
+    0.05,
+    0.95
+   ]
+  ],
+  "expectedRoles": [
+   "execution",
+   "deliberation",
+   "execution",
+   "deliberation",
+   "execution"
+  ],
+  "rows": [
+   {
+    "model": "tailnet/@preset/glm-flash",
+    "stop": "stop",
+    "input": 16565,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "output": 3
+   },
+   {
+    "model": "tailnet/@preset/glm-max",
+    "stop": "stop",
+    "input": 9036,
+    "cacheRead": 7552,
+    "cacheWrite": 0,
+    "output": 3
+   },
+   {
+    "model": "tailnet/@preset/glm-flash",
+    "stop": "stop",
+    "input": 77,
+    "cacheRead": 16512,
+    "cacheWrite": 0,
+    "output": 3
+   },
+   {
+    "model": "tailnet/@preset/glm-max",
+    "stop": "stop",
+    "input": 36,
+    "cacheRead": 16576,
+    "cacheWrite": 0,
+    "output": 3
+   },
+   {
+    "model": "tailnet/@preset/glm-flash",
+    "stop": "stop",
+    "input": 37,
+    "cacheRead": 16576,
+    "cacheWrite": 0,
+    "output": 3
+   }
+  ]
+ }
+}
