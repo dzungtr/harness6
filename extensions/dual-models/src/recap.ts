@@ -1,5 +1,6 @@
 import { type ExtensionAPI, estimateTokens } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { recordRecapSpan } from "./telemetry.ts";
 
 export const RECAP_ENTRY = "dual-models.recap";
 
@@ -99,9 +100,12 @@ export function registerRecap(pi: ExtensionAPI, getBudgets: () => DigestBudgets)
 			courseOfAction: Type.Optional(Type.String({ description: "The current course of action. Replaces the previous one." })),
 			event: Type.Optional(Type.String({ description: "One significant event to append." })),
 		}),
-		async execute(_id, params) {
+		async execute(_id, params, _signal, _onUpdate, ctx) {
+			const span = { sessionId: ctx.sessionManager.getSessionId(), budget: getBudgets().recapTokens };
 			if (params.intent === undefined && params.courseOfAction === undefined && params.event === undefined) {
-				throw new Error("recap: provide at least one of intent, courseOfAction, event");
+				const err = new Error("recap: provide at least one of intent, courseOfAction, event");
+				recordRecapSpan(span, err);
+				throw err;
 			}
 			const budget = getBudgets().recapTokens;
 			const next: RecapState = {
@@ -113,10 +117,13 @@ export function registerRecap(pi: ExtensionAPI, getBudgets: () => DigestBudgets)
 			while (countTokens(renderRecap(next)) > budget && next.events.length > keepAtLeast) next.events.shift();
 			const used = countTokens(renderRecap(next));
 			if (used > budget) {
-				throw new Error(`recap: write rejected, the Recap would use ${used} tokens against a budget of ${budget}. Be briefer. Nothing was stored.`);
+				const err = new Error(`recap: write rejected, the Recap would use ${used} tokens against a budget of ${budget}. Be briefer. Nothing was stored.`);
+				recordRecapSpan(span, err);
+				throw err;
 			}
 			state = next;
 			pi.appendEntry(RECAP_ENTRY, state);
+			recordRecapSpan(span, { intent: state.intent, courseOfAction: state.courseOfAction, event: params.event, eventCount: state.events.length, tokens: used });
 			return { content: [{ type: "text", text: `Recap saved (${used}/${budget} tokens).` }], details: undefined };
 		},
 	});

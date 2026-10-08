@@ -80,3 +80,38 @@ export function startGateSpan(start: GateSpanStart): GateSpan {
 		},
 	};
 }
+
+export interface RecapSpanStart {
+	sessionId: string;
+	budget: number;
+}
+
+export interface RecapWrite {
+	intent: string;
+	courseOfAction: string;
+	/** The event appended by this write, if any. */
+	event?: string;
+	eventCount: number;
+	tokens: number;
+}
+
+/** Record a `dual_models.recap` span for one `recap` tool call: the stored Recap on success, an error status when the write is rejected. */
+export function recordRecapSpan(start: RecapSpanStart, write: RecapWrite | Error): void {
+	const span: Span = getTracer().startSpan("dual_models.recap", {
+		attributes: { "recap.budget": start.budget, "session.id": start.sessionId, "gen_ai.conversation.id": start.sessionId },
+	});
+	if (write instanceof Error) {
+		span.setAttribute("recap.rejected", true);
+		span.setStatus({ code: SpanStatusCode.ERROR, message: write.message });
+	} else {
+		span.setAttributes({
+			"recap.rejected": false,
+			"recap.tokens": write.tokens,
+			"recap.intent": write.intent,
+			"recap.course_of_action": write.courseOfAction,
+			"recap.events.count": write.eventCount,
+		});
+		if (write.event !== undefined) span.setAttribute("recap.event", write.event);
+	}
+	span.end();
+}
