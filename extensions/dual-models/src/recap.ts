@@ -21,7 +21,7 @@ interface RecapState {
 
 const EMPTY: RecapState = { intent: "", courseOfAction: "", events: [] };
 
-const countTokens = (text: string) => estimateTokens({ role: "user", content: text, timestamp: 0 } as never);
+export const countTokens = (text: string) => estimateTokens({ role: "user", content: text, timestamp: 0 } as never);
 
 function renderRecap(s: RecapState): string {
 	const lines = [`Intent: ${s.intent || "(not set)"}`, `Course of action: ${s.courseOfAction || "(not set)"}`];
@@ -63,6 +63,7 @@ export function registerRecap(pi: ExtensionAPI, getBudgets: () => DigestBudgets)
 
 	const restore = (_event: unknown, ctx: { sessionManager: { getBranch(): any[] } }) => {
 		state = EMPTY;
+		lastToolOutput = "";
 		for (const entry of ctx.sessionManager.getBranch()) {
 			if (entry.type !== "custom" || entry.customType !== RECAP_ENTRY) continue;
 			state = parseState(entry.data) ?? state;
@@ -112,10 +113,13 @@ export function registerRecap(pi: ExtensionAPI, getBudgets: () => DigestBudgets)
 
 	return {
 		/** The input System-1 judges from: the Recap plus the last tool output. It never names the current role. */
-		buildDigest(): Digest {
+		buildDigest(opts: { toolOutput?: boolean } = {}): Digest {
 			const budgets = getBudgets();
-			let text = renderRecap(state);
-			if (lastToolOutput) text += `\n\nLast tool output:\n${truncateHeadTail(lastToolOutput, budgets.toolOutputTokens)}`;
+			// The budget is enforced on write, so re-check it here in case it was lowered since.
+			const fit: RecapState = { ...state, events: [...state.events] };
+			while (countTokens(renderRecap(fit)) > budgets.recapTokens && fit.events.length > 0) fit.events.shift();
+			let text = truncateHeadTail(renderRecap(fit), budgets.recapTokens);
+			if (opts.toolOutput !== false && lastToolOutput) text += `\n\nLast tool output:\n${truncateHeadTail(lastToolOutput, budgets.toolOutputTokens)}`;
 			return { state: text, tokens: countTokens(text) };
 		},
 	};

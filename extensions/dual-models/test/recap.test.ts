@@ -118,4 +118,35 @@ describe("digest builder", () => {
 		h.fire("tool_result", { type: "tool_result", toolName: "bash", content: [{ type: "text", text: "tiny" }] });
 		expect(h.recap.buildDigest().state).toContain("tiny");
 	});
+
+	it("can leave the last tool output out of the Digest", () => {
+		const h = setup();
+		h.fire("tool_result", { type: "tool_result", toolName: "bash", content: [{ type: "text", text: "stale output" }] });
+		expect(h.recap.buildDigest({ toolOutput: false }).state).not.toContain("stale output");
+		expect(h.recap.buildDigest().state).toContain("stale output");
+	});
+
+	it("drops the previous branch's tool output when the branch is restored", () => {
+		const h = setup();
+		h.fire("tool_result", { type: "tool_result", toolName: "bash", content: [{ type: "text", text: "old branch output" }] });
+		h.fire("session_tree", { type: "session_tree" });
+		expect(h.recap.buildDigest().state).not.toContain("old branch output");
+		h.fire("tool_result", { type: "tool_result", toolName: "bash", content: [{ type: "text", text: "second" }] });
+		h.fire("session_start", { type: "session_start", reason: "resume" });
+		expect(h.recap.buildDigest().state).not.toContain("second");
+	});
+
+	it("re-checks the Recap budget when building the Digest after the budget was lowered", async () => {
+		const budgets = { recapTokens: 2000, toolOutputTokens: 2000 };
+		const h = setup(budgets);
+		await h.write({ intent: "goal", courseOfAction: "plan" });
+		for (let i = 0; i < 6; i++) await h.write({ event: `event-${i} ${"w".repeat(200)}` });
+		expect(h.recap.buildDigest().state).toContain("event-0");
+		budgets.recapTokens = 150;
+		const { state } = h.recap.buildDigest();
+		expect(tokens(state)).toBeLessThanOrEqual(150);
+		expect(state).toContain("event-5");
+		expect(state).not.toContain("event-0");
+		expect(state).toContain("goal");
+	});
 });

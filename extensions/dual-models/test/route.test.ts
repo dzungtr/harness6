@@ -27,7 +27,7 @@ describe("route()", () => {
 	beforeEach(() => vi.stubEnv("OPENROUTER_API_KEY", ""));
 	afterEach(() => vi.unstubAllEnvs());
 
-	for (const reason of ["user", "continuation", "retry", "direct"] as const) {
+	for (const reason of ["user", "continuation", "retry"] as const) {
 		it(`returns the deliberation model (default defaultRole) for ${reason}`, async () => {
 			const route = await router()(request(reason), ctx);
 			expect(route.model).toBe(DELIB);
@@ -39,6 +39,10 @@ describe("route()", () => {
 			expect(route.model).toBe(EXEC);
 		});
 	}
+
+	it("serves a direct request with the execution model whatever defaultRole is", async () => {
+		expect((await router()(request("direct"), ctx)).model).toBe(EXEC);
+	});
 
 	it("returns nothing but model and thinkingLevel, so prompt and tools stay identical across roles", async () => {
 		const a = await router()(request("user"), ctx);

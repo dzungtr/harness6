@@ -31,7 +31,7 @@ function ctxFor(cwd: string, notify = vi.fn()) {
 		cwd,
 		isProjectTrusted: () => false,
 		ui: { notify },
-		sessionManager: { getBranch: () => [] },
+		sessionManager: { getBranch: () => [], getSessionId: () => "s" },
 		modelRegistry: { find: () => m },
 		m,
 	};

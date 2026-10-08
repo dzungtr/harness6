@@ -73,15 +73,35 @@ describe("dual_models.gate span", () => {
 	});
 
 	it("records the previous role and whether the Gate switched", async () => {
-		const r = router();
-		respond = answer(0.2, 0.8);
-		await r(request, ctx);
 		respond = answer(0.9, 0.1);
-		await r(request, ctx);
-		const second = exporter.getFinishedSpans()[1].attributes;
-		expect(second["role.previous"]).toBe("execution");
-		expect(second["role.chosen"]).toBe("deliberation");
-		expect(second.switched).toBe(true);
+		await router()({ ...request, previous: { model: EXEC } } as ModelRouteRequest, ctx);
+		const attrs = exporter.getFinishedSpans()[0].attributes;
+		expect(attrs["role.previous"]).toBe("execution");
+		expect(attrs["role.chosen"]).toBe("deliberation");
+		expect(attrs.switched).toBe(true);
+	});
+
+	it("labels a turn-end Gate call with the turn_end event", async () => {
+		respond = answer(0.9, 0.1);
+		await router()({ ...request, reason: "continuation", previous: { model: EXEC } } as ModelRouteRequest, ctx);
+		const attrs = exporter.getFinishedSpans()[0].attributes;
+		expect(attrs.event).toBe("turn_end");
+		expect(attrs.switched).toBe(true);
+	});
+
+	it("reports switched=false when hysteresis keeps the current role", async () => {
+		respond = answer(0.7, 0.3);
+		await router()({ ...request, reason: "continuation", previous: { model: EXEC } } as ModelRouteRequest, ctx);
+		const attrs = exporter.getFinishedSpans()[0].attributes;
+		expect(attrs["role.previous"]).toBe("execution");
+		expect(attrs["role.chosen"]).toBe("execution");
+		expect(attrs.switched).toBe(false);
+	});
+
+	it("counts the tokens of the Digest actually sent, including the new prompt", async () => {
+		respond = answer(0.2, 0.8);
+		await router()({ ...request, messages: [{ role: "user", content: "p".repeat(400) }] } as unknown as ModelRouteRequest, ctx);
+		expect(exporter.getFinishedSpans()[0].attributes["digest.tokens"]).toBeGreaterThan(100);
 	});
 
 	it("span duration covers the System-1 round-trip", async () => {
