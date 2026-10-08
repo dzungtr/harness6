@@ -23,7 +23,7 @@ function setup(budgets = { recapTokens: 2000, toolOutputTokens: 2000 }, restored
 	};
 	const recap = registerRecap(pi as never, () => budgets);
 	const branch = restored.map((data) => ({ type: "custom", customType: "dual-models.recap", data }));
-	const ctx = { sessionManager: { getBranch: () => branch } };
+	const ctx = { sessionManager: { getBranch: () => branch, getSessionId: () => "sess-42" } };
 	const fire = (name: string, event: unknown) => (handlers[name] ?? []).forEach((h) => h(event, ctx));
 	fire("session_start", { type: "session_start", reason: "startup" });
 	return { tool, entries, recap, fire, write: (params) => tool.execute("id", params, undefined, undefined, ctx) };
