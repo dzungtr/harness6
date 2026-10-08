@@ -4,6 +4,7 @@ import { CONFIG_DIR_NAME, type ExtensionAPI, type ExtensionContext, getAgentDir 
 import { type ConfigResult, DEFAULT_CONFIG, resolveConfig } from "./config.ts";
 import { registerRecap } from "./recap.ts";
 import { createRouter } from "./route.ts";
+import { shutdownTelemetry } from "./telemetry.ts";
 
 function readJson(path: string): { value?: unknown; error?: string } {
 	if (!existsSync(path)) return {};
@@ -33,6 +34,8 @@ export default function dualModels(pi: ExtensionAPI) {
 		current = loadConfig(ctx.cwd, ctx.isProjectTrusted());
 		if (!current.ok) ctx.ui.notify(`Dual Models: invalid config\n${current.errors.join("\n")}`, "error");
 	});
+
+	pi.on("session_shutdown", () => shutdownTelemetry());
 
 	const recap = registerRecap(pi, () => (current.ok ? current.config.digest : DEFAULT_CONFIG.digest));
 

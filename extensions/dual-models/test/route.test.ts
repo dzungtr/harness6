@@ -9,6 +9,7 @@ const EXEC = physical("zai", "glm-5.3-flash");
 
 const ctx = {
 	ui: { notify: () => {} },
+	sessionManager: { getSessionId: () => "sess-1" },
 	modelRegistry: {
 		find: (provider: string, id: string) => [DELIB, EXEC].find((m: any) => m.provider === provider && m.id === id),
 	},

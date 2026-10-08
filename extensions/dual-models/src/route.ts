@@ -2,6 +2,7 @@ import type { ExtensionContext, ModelRoute, ModelRouteRequest } from "@earendil-
 import type { ConfigResult, Role } from "./config.ts";
 import { type Digest, truncateHeadTail } from "./recap.ts";
 import { decide } from "./system1.ts";
+import { startGateSpan } from "./telemetry.ts";
 
 export type Router = ((request: ModelRouteRequest, ctx: ExtensionContext) => Promise<ModelRoute>) & {
 	/** Clear the failure count and re-enable the Gate (a new session). */
@@ -33,6 +34,7 @@ const MAX_CONSECUTIVE_FAILURES = 3;
  */
 export function createRouter(getConfig: () => ConfigResult, buildDigest: () => Digest): Router {
 	let failures = 0;
+	let previous: Role | undefined;
 
 	const route = async (request: ModelRouteRequest, ctx: ExtensionContext): Promise<ModelRoute> => {
 		const result = getConfig();
@@ -44,6 +46,7 @@ export function createRouter(getConfig: () => ConfigResult, buildDigest: () => D
 			const slash = ref.indexOf("/");
 			const model = ctx.modelRegistry.find(ref.slice(0, slash), ref.slice(slash + 1));
 			if (!model) throw new Error(`Dual Models: model ${ref} is not in the Pi catalog`);
+			previous = role;
 			return { model, thinkingLevel: request.thinkingLevel };
 		};
 
@@ -51,12 +54,17 @@ export function createRouter(getConfig: () => ConfigResult, buildDigest: () => D
 		if (config.forceDeliberationOnPrompt) return pick("deliberation");
 		if (failures >= MAX_CONSECUTIVE_FAILURES) return pick(config.defaultRole);
 
-		const outcome = await decide(withPrompt(buildDigest().state, request, config.digest.toolOutputTokens), { ...config.system1, signal: request.signal });
+		const digest = buildDigest();
+		const span = startGateSpan({ event: "prompt", system1Model: config.system1.model, sessionId: ctx.sessionManager.getSessionId(), previous, digestTokens: digest.tokens });
+		const outcome = await decide(withPrompt(digest.state, request, config.digest.toolOutputTokens), { ...config.system1, signal: request.signal });
 		if (outcome.ok) {
 			failures = 0;
 			const { pDeliberation, pExecution } = outcome.decision;
-			return pick(pDeliberation >= pExecution ? "deliberation" : "execution");
+			const chosen = pDeliberation >= pExecution ? "deliberation" : "execution";
+			span.end(outcome, chosen);
+			return pick(chosen);
 		}
+		span.end(outcome, config.defaultRole);
 
 		failures++;
 		const reason = outcome.detail ? `${outcome.failure}: ${outcome.detail}` : outcome.failure;
