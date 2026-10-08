@@ -75,6 +75,8 @@ describe("dual_models.gate span", () => {
 			"p.execution": 0.8,
 			"role.chosen": "execution",
 			"role.previous": "none",
+			"model.applied": "zai/glm-5.3-flash",
+			"model.previous": "none",
 			switched: false,
 			fallback: false,
 			"digest.tokens": 7,
@@ -92,6 +94,8 @@ describe("dual_models.gate span", () => {
 		expect(attrs["role.previous"]).toBe("execution");
 		expect(attrs["role.chosen"]).toBe("reasoning");
 		expect(attrs.switched).toBe(true);
+		expect(attrs["model.applied"]).toBe("kimi/k3");
+		expect(attrs["model.previous"]).toBe("zai/glm-5.3-flash");
 	});
 
 	it("labels a turn-end Gate call with the turn_end event", async () => {
@@ -131,6 +135,7 @@ describe("dual_models.gate span", () => {
 		const [s] = exporter.getFinishedSpans();
 		expect(s.attributes.fallback).toBe(true);
 		expect(s.attributes["role.chosen"]).toBe("reasoning");
+		expect(s.attributes["model.applied"]).toBe("kimi/k3");
 		expect(s.attributes["p.reasoning"]).toBeUndefined();
 		expect(s.status.code).toBe(SpanStatusCode.ERROR);
 	});

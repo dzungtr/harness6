@@ -75,3 +75,5 @@ A project can set `criteria` alone, for example `{"dualModels": {"models": {"exe
 ## Telemetry
 
 Each Gate call emits a `dual_models.gate` span. `gate.criteria_hash` is the first 12 hex characters of the sha256 of the effective criteria (reasoning, then execution), so runs with different criteria can be compared. The criteria text is never exported.
+
+`model.applied` is the configured `provider/modelId` of the role the Gate chose (`models.<role>.model`), and `model.previous` is the same for the role in use before the call (`none` on the first call). Use them to map `role.chosen` to a concrete model, since the `chat` spans only carry `gen_ai.request.model="auto"`.

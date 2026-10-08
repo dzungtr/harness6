@@ -40,6 +40,8 @@ export interface GateSpanStart {
 	previous: Role | undefined;
 	digestTokens: number;
 	criteriaHash: string;
+	/** Configured `provider/modelId` per role, from `models.<role>.model`. */
+	models: Record<Role, string>;
 }
 
 export interface GateSpan {
@@ -54,6 +56,7 @@ export function startGateSpan(start: GateSpanStart): GateSpan {
 			event: start.event,
 			"system1.model": start.system1Model,
 			"role.previous": start.previous ?? "none",
+			"model.previous": start.previous ? start.models[start.previous] : "none",
 			"digest.tokens": start.digestTokens,
 			"gate.criteria_hash": start.criteriaHash,
 			"session.id": start.sessionId,
@@ -64,6 +67,7 @@ export function startGateSpan(start: GateSpanStart): GateSpan {
 		end(outcome, chosen) {
 			span.setAttributes({
 				"role.chosen": chosen,
+				"model.applied": start.models[chosen],
 				switched: start.previous !== undefined && start.previous !== chosen,
 				fallback: !outcome.ok,
 			});
