@@ -132,11 +132,10 @@ describe("System-1 Gate on new prompts", () => {
 		expect(seen[0].body.state).not.toContain("kimi");
 	});
 
-	it("does not call System-1 for non-user reasons", async () => {
+	it("does not call System-1 for retry or direct reasons", async () => {
 		const r = router();
-		for (const reason of ["continuation", "retry", "direct"] as const) {
-			expect((await r(request(reason), ctx)).model).toBe(DELIB);
-		}
+		expect((await r(request("retry"), ctx)).model).toBe(DELIB);
+		expect((await r(request("direct"), ctx)).model).toBe(EXEC);
 		expect(seen).toHaveLength(0);
 	});
 
@@ -146,12 +145,12 @@ describe("System-1 Gate on new prompts", () => {
 		expect(seen).toHaveLength(0);
 	});
 
-	it("missing key falls back to defaultRole without a call, counted as a failure", async () => {
+	it("missing key falls back to defaultRole without a call and without a notice until the Gate disables", async () => {
 		vi.stubEnv("OPENROUTER_API_KEY", "");
 		const r = router({ defaultRole: "execution" });
 		expect((await r(request("user"), ctx)).model).toBe(EXEC);
 		expect(seen).toHaveLength(0);
-		expect(notify).toHaveBeenCalledTimes(1);
+		expect(notify).not.toHaveBeenCalled();
 	});
 
 	it("HTTP error falls back to defaultRole", async () => {

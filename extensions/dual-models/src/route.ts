@@ -1,6 +1,6 @@
 import type { ExtensionContext, ModelRoute, ModelRouteRequest } from "@earendil-works/pi-coding-agent";
-import type { ConfigResult, Role } from "./config.ts";
-import { type Digest, truncateHeadTail } from "./recap.ts";
+import type { ConfigResult, EventName, Role } from "./config.ts";
+import { countTokens, type Digest, truncateHeadTail } from "./recap.ts";
 import { decide } from "./system1.ts";
 import { startGateSpan } from "./telemetry.ts";
 
@@ -27,56 +27,84 @@ function withPrompt(state: string, request: ModelRouteRequest, budget: number): 
 
 const MAX_CONSECUTIVE_FAILURES = 3;
 
+function eventOf(request: ModelRouteRequest, compacting: boolean): EventName {
+	switch (request.reason) {
+		case "user":
+			return "prompt";
+		case "continuation":
+			return "turn_end";
+		case "retry":
+			return "retry";
+		case "direct":
+			return compacting ? "compaction" : "side-call";
+	}
+}
+
 /**
- * Build the Virtual Model `route()`. A `user` request asks System-1 the Gate question and is served by the
- * argmax role. Every other reason, and any System-1 failure, is served by `defaultRole`.
+ * Build the Virtual Model `route()`. The request's reason maps to an event, and the event map names the target:
+ * a fixed role, `previous` (the role that served the last response), or `system1`, which asks the Gate.
+ * The Gate switches away from the previous role only when the other role's probability reaches `thetaSwitch`,
+ * and takes the argmax when there is no previous role. Any System-1 failure is served by `defaultRole`.
  * Only `model` and `thinkingLevel` are returned, so the system prompt and tool list never depend on the role.
  */
-export function createRouter(getConfig: () => ConfigResult, buildDigest: () => Digest): Router {
+export function createRouter(getConfig: () => ConfigResult, buildDigest: (opts?: { toolOutput?: boolean }) => Digest, isCompacting: () => boolean = () => false): Router {
 	let failures = 0;
-	let previous: Role | undefined;
 
 	const route = async (request: ModelRouteRequest, ctx: ExtensionContext): Promise<ModelRoute> => {
 		const result = getConfig();
 		if (!result.ok) throw new Error(`Dual Models config is invalid:\n${result.errors.join("\n")}`);
 		const { config } = result;
 
+		const split = (ref: string): [string, string] => [ref.slice(0, ref.indexOf("/")), ref.slice(ref.indexOf("/") + 1)];
 		const pick = (role: Role): ModelRoute => {
-			const ref = role === "deliberation" ? config.deliberationModel : config.executionModel;
-			const slash = ref.indexOf("/");
-			const model = ctx.modelRegistry.find(ref.slice(0, slash), ref.slice(slash + 1));
-			if (!model) throw new Error(`Dual Models: model ${ref} is not in the Pi catalog`);
-			previous = role;
+			const [provider, id] = split(role === "deliberation" ? config.deliberationModel : config.executionModel);
+			const model = ctx.modelRegistry.find(provider, id);
+			if (!model) throw new Error(`Dual Models: model ${provider}/${id} is not in the Pi catalog`);
 			return { model, thinkingLevel: request.thinkingLevel };
 		};
+		const roleOfPrevious = (): Role | undefined => {
+			const prev = request.previous?.model;
+			if (!prev) return undefined;
+			for (const role of ["deliberation", "execution"] as const) {
+				const [provider, id] = split(role === "deliberation" ? config.deliberationModel : config.executionModel);
+				if (prev.provider === provider && prev.id === id) return role;
+			}
+			return undefined;
+		};
 
-		if (request.reason !== "user") return pick(config.defaultRole);
-		if (config.forceDeliberationOnPrompt) return pick("deliberation");
+		const event = eventOf(request, isCompacting());
+		if (event === "prompt" && config.forceDeliberationOnPrompt) return pick("deliberation");
+		const target = config.events[event];
+		if (target === "previous") return pick(roleOfPrevious() ?? config.defaultRole);
+		if (target !== "system1") return pick(target);
 		if (failures >= MAX_CONSECUTIVE_FAILURES) return pick(config.defaultRole);
 
-		const digest = buildDigest();
-		const span = startGateSpan({ event: "prompt", system1Model: config.system1.model, sessionId: ctx.sessionManager.getSessionId(), previous, digestTokens: digest.tokens });
-		const outcome = await decide(withPrompt(digest.state, request, config.digest.toolOutputTokens), { ...config.system1, signal: request.signal });
+		const sent = event === "prompt" ? withPrompt(buildDigest({ toolOutput: false }).state, request, config.digest.toolOutputTokens) : buildDigest().state;
+		const current = roleOfPrevious();
+		const span = startGateSpan({ event, system1Model: config.system1.model, sessionId: ctx.sessionManager.getSessionId(), previous: current, digestTokens: countTokens(sent) });
+		const outcome = await decide(sent, { ...config.system1, signal: request.signal });
 		if (outcome.ok) {
 			failures = 0;
 			const { pDeliberation, pExecution } = outcome.decision;
-			const chosen = pDeliberation >= pExecution ? "deliberation" : "execution";
+			let chosen: Role;
+			if (!current) {
+				chosen = pDeliberation >= pExecution ? "deliberation" : "execution";
+			} else {
+				const other: Role = current === "deliberation" ? "execution" : "deliberation";
+				const pOther = other === "deliberation" ? pDeliberation : pExecution;
+				chosen = pOther >= config.system1.thetaSwitch ? other : current;
+			}
 			span.end(outcome, chosen);
 			return pick(chosen);
 		}
 		span.end(outcome, config.defaultRole);
 
 		failures++;
-		const reason = outcome.detail ? `${outcome.failure}: ${outcome.detail}` : outcome.failure;
 		if (failures >= MAX_CONSECUTIVE_FAILURES) {
+			const reason = outcome.detail ? `${outcome.failure}: ${outcome.detail}` : outcome.failure;
 			ctx.ui.notify(`Dual Models: System-1 failed ${failures} times in a row (${reason}). Gate disabled for this session, using ${config.defaultRole}.`, "warning");
-		} else {
-			ctx.ui.notify(`Dual Models: System-1 unavailable (${reason}), using ${config.defaultRole}.`, "warning");
 		}
 		return pick(config.defaultRole);
 	};
-	return Object.assign(route, { reset: () => {
-		failures = 0;
-		previous = undefined;
-	} });
+	return Object.assign(route, { reset: () => void (failures = 0) });
 }

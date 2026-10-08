@@ -29,7 +29,14 @@ export default function dualModels(pi: ExtensionAPI) {
 
 	let router: ReturnType<typeof createRouter>;
 
+	// Pi gives a compaction summary request no marker in route(), so flag the window around it.
+	let compacting = false;
+	pi.on("session_before_compact", () => void (compacting = true));
+	pi.on("session_compact", () => void (compacting = false));
+	pi.on("session_compact_failed", () => void (compacting = false));
+
 	pi.on("session_start", (_event, ctx: ExtensionContext) => {
+		compacting = false;
 		router.reset();
 		current = loadConfig(ctx.cwd, ctx.isProjectTrusted());
 		if (!current.ok) ctx.ui.notify(`Dual Models: invalid config\n${current.errors.join("\n")}`, "error");
@@ -39,7 +46,7 @@ export default function dualModels(pi: ExtensionAPI) {
 
 	const recap = registerRecap(pi, () => (current.ok ? current.config.digest : DEFAULT_CONFIG.digest));
 
-	router = createRouter(() => current, recap.buildDigest);
+	router = createRouter(() => current, recap.buildDigest, () => compacting);
 
 	pi.registerVirtualModel({
 		provider: "dual-models",
