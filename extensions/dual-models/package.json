@@ -1,0 +1,25 @@
+{
+  "name": "dual-models",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Dual Models Pi extension: System-1-gated model routing",
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "^1.0.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^1.1.0",
+    "@types/node": "^26.6.4",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
