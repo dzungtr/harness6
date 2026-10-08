@@ -32,12 +32,15 @@ know it is being routed, and it cannot detect being lost from inside the loop.
 Rejected: they route by tier heuristics or LLM prompt classification, not a decision
 model.
 
-**Hysteresis threshold (`θ_switch`) on the other role's probability.** Rejected: an
-offline replay of 3 live sessions gave 6 switches per session for θ 0.60–0.90
-(`docs/experiments/0001-live-experiment-findings.md`), so it did not reduce switching. It
-also overrode System-1's preferred role, e.g. staying in Deliberation when Execution scored
-0.6 (#75). Do not reintroduce. Switch churn stays observable via `switched=true` on
-`dual_models.gate` spans.
+**Hysteresis threshold (`θ_switch`) on the other role's probability.** Rejected: it
+overrode System-1's preferred role, e.g. staying in Deliberation when Execution scored
+0.6 (#75). A static count over the live escalations
+(`docs/experiments/0001-live-experiment-findings.md`) shows θ 0.80 would have suppressed
+4 of 7 escalations that System-1 chose. An offline replay of 3 live sessions gave 6
+switches per session for θ 0.60–0.90, but the replay is path-dependent and low-n, so it
+is weaker evidence than the static count and is not the basis for rejection. Do not
+reintroduce. Switch churn stays observable via `switched=true` on `dual_models.gate`
+spans.
 
 **Per-role or asymmetric switch thresholds** (#73). Rejected in favour of per-role
 `criteria` text (#75): one tuning knob, applied where System-1 forms its preference.
@@ -59,4 +62,4 @@ fallback `git log -p` on this file._
 
 | Date | PR | Change |
 |---|---|---|
-| 2026-10-08 | #75 | `θ_switch` hysteresis dropped; Gate takes argmax, preference tuned via per-role `criteria`. |
+| 2026-10-08 | #79 | `θ_switch` hysteresis dropped (#75); Gate takes argmax, preference tuned via per-role `criteria`. |
