@@ -1,9 +1,24 @@
 {
-  "name": "dual-models",
+  "name": "@dzungtr/dual-models",
   "version": "0.0.1",
-  "private": true,
   "type": "module",
   "description": "Dual Models Pi extension: System-1-gated model routing",
+  "keywords": [
+    "pi-package",
+    "pi-extension"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/dzungtr/harness6.git",
+    "directory": "extensions/dual-models"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "pi": {
     "extensions": [
       "./src/index.ts"
