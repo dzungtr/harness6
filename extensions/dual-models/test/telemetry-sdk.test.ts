@@ -2,10 +2,13 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { trace } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
-import { shutdownTelemetry, startGateSpan } from "../src/telemetry.ts";
+import { flushTelemetry, startGateSpan } from "../src/telemetry.ts";
+
+const ok = { ok: true, decision: { pDeliberation: 0.1, pExecution: 0.9 } } as const;
+const gate = () => startGateSpan({ event: "prompt", system1Model: "m", sessionId: "s1", previous: undefined, digestTokens: 1 }).end(ok, "execution");
 
 describe("dual_models.gate span without a registered provider", () => {
-	it("starts the SDK, exports OTLP/HTTP to OTEL_EXPORTER_OTLP_ENDPOINT, service.name defaults to pi", async () => {
+	it("starts the SDK, exports OTLP/HTTP with service.name pi, and survives repeated session_shutdown flushes", async () => {
 		const posts: { url?: string; body: Buffer }[] = [];
 		const server = createServer((req, res) => {
 			const chunks: Buffer[] = [];
@@ -20,12 +23,11 @@ describe("dual_models.gate span without a registered provider", () => {
 		vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", `http://127.0.0.1:${(server.address() as AddressInfo).port}`);
 		vi.stubEnv("OTEL_SERVICE_NAME", "");
 		try {
-			startGateSpan({ event: "prompt", system1Model: "m", sessionId: "s1", previous: undefined, digestTokens: 1 }).end(
-				{ ok: true, decision: { pDeliberation: 0.1, pExecution: 0.9 } },
-				"execution",
-			);
-			await shutdownTelemetry();
-			expect(posts).toHaveLength(1);
+			gate();
+			await flushTelemetry();
+			gate();
+			await flushTelemetry();
+			expect(posts).toHaveLength(2);
 			expect(posts[0].url).toBe("/v1/traces");
 			const text = posts[0].body.toString("latin1");
 			expect(text).toContain("dual_models.gate");

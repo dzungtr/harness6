@@ -75,5 +75,8 @@ export function createRouter(getConfig: () => ConfigResult, buildDigest: () => D
 		}
 		return pick(config.defaultRole);
 	};
-	return Object.assign(route, { reset: () => void (failures = 0) });
+	return Object.assign(route, { reset: () => {
+		failures = 0;
+		previous = undefined;
+	} });
 }

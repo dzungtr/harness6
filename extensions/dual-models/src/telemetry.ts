@@ -28,11 +28,9 @@ function getTracer(): Tracer {
 	return tracer;
 }
 
-/** Flush and stop the SDK we started, if any. A provider registered by someone else is left alone. */
-export async function shutdownTelemetry(): Promise<void> {
-	await ownProvider?.shutdown();
-	ownProvider = undefined;
-	tracer = undefined;
+/** Flush the SDK we started, if any, and keep it alive: Pi fires session_shutdown on /new, /resume and /fork. */
+export async function flushTelemetry(): Promise<void> {
+	await ownProvider?.forceFlush();
 }
 
 export interface GateSpanStart {
