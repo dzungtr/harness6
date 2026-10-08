@@ -37,6 +37,14 @@ describe("recap tool", () => {
 		expect(tool.description).toMatch(/never.*(routine|every turn)/i);
 	});
 
+	it("surfaces itself in the system prompt with a snippet and guidelines", () => {
+		const { tool } = setup();
+		expect(tool.promptSnippet).toMatch(/^recap: \S/);
+		expect(tool.promptGuidelines.length).toBeGreaterThan(0);
+		expect(tool.promptGuidelines.every((g: string) => g.trim().length > 0)).toBe(true);
+		expect(tool.promptGuidelines.join(" ")).toMatch(/before you carry it out/i);
+	});
+
 	it("replaces the header on each write", async () => {
 		const h = setup();
 		await h.write({ intent: "fix billing", courseOfAction: "step A" });
