@@ -12,48 +12,52 @@ Setup: `pi --mode rpc` with the extension, Execution `tailnet/@preset/glm-flash`
 | ~4000 tokens (16k chars) | **509 ms** | 603 ms | 718 ms | 0 |
 
 - A 4k Digest adds about 20 ms at p50. The ~570 ms from the earlier probes was network noise, not Digest size.
-- Live `dual_models.gate` span durations (n=13): min 459, p50 541, max 846 ms (the first call, a cold connection).
+- Live `dual_models.gate` span durations: see section 3.
 
 ## 2. Cache reuse on return to a role
 
-Scripted System-1 forced flash, max, flash, max, flash on a 16.5k-token first prompt (same shape as `npm run test:e2e`).
+Scripted System-1 forced flash, max, flash, max, flash on a ~16.5k-token first prompt. Re-run twice with a per-run nonce at the start of the padding (`results-cache-run1.json`, `-run2.json`), after the first un-nonced run was found confounded by earlier runs sharing the same prompt.
 
-| Turn | Served by | input | cacheRead |
+| Turn | Served by | run 1 cacheRead | run 2 cacheRead |
 |---|---|---|---|
-| 1 | flash | 16565 | 0 |
-| 2 | max | 9036 | 7552 |
-| 3 | flash (return) | 77 | **16512** |
-| 4 | max (return) | 36 | **16576** |
-| 5 | flash (return) | 37 | **16576** |
+| 1 | flash | 0 | 0 |
+| 2 | max (first visit) | 7552 | 7552 |
+| 3 | flash (return) | **0** | **0** |
+| 4 | max (return) | **16576** | **16576** |
+| 5 | flash (return) | **0** | **16576** |
 
-- **Hit for both roles.** A returning role reads essentially its whole earlier prefix, against the #58 baseline of 8640 tokens.
-- Turn 2 read 7552 tokens on its first visit to max. That is a provider-side cache seeded by an earlier run with the identical prefix, so treat it as a lower-confidence data point. Turns 3 to 5 are the clean evidence.
-- In the live session the same pattern holds: every turn after the first reads 7.4k to 9.3k cached tokens regardless of which role serves it, including turns right after a switch.
+- **max: hit on return** (2 of 2), about the whole prefix.
+- **flash: mixed** (1 hit of 4 returns across the two runs). The un-nonced run had hit on flash returns, so flash hits depend on something other than role switching (possibly cache fill lag or provider-side routing of the preset); not diagnosed.
+- First visit to max read 7552 tokens even with the nonce. 9064 uncached + 7552 cached equals the full prompt, so the 7552 is the static prefix (system prompt and tool definitions, identical across runs), cached provider-side from earlier runs. It is not conversation reuse. This differs from the #58 baseline (0 on the first request after a switch), which probably saw no warm static prefix.
+- The 8640 baseline is not reproduced for flash returns; max returns exceed it.
+- Live sessions (section 3): turns after a switch mostly show cacheRead of 7.5k to 9.3k, but some turns read 0 (run 2 one max turn, run 3 four flash turns). Cache reuse is real but unreliable on these presets.
 
-## 3. Live Gate (8 prompts: trivial, ambiguous, mid-loop escalation; 13 Gate calls)
+## 3. Live Gate (3 live sessions, each 8 prompts: trivial, ambiguous, mid-loop escalation)
 
-- Spans carried `service.name=pi`, all attributes present, 0 fallbacks, 0 errors. All 13 spans arrived (8 prompt + 5 turn_end, one per tool round trip), so no loss at exit with an 8 s wait.
-- 6 of 13 Gate calls switched role (2 at turn_end).
-- Observed probabilities on the other role were bimodal: prompt-event switches were all at 0.94 or above, stays at 0.24 or below. The only mid-range values were two turn_end escalations: **0.76** and **0.80**.
-- Offline sweep of the hysteresis over the recorded probabilities (counterfactual: later digests would differ in a real run):
+Sessions are in `results-live-run{1,2,3}.json`; `python3 docs/experiments/analyze.py` prints the summary.
 
-| theta_switch | switches | turn_end switches |
-|---|---|---|
-| 0.55 to 0.75 | 6 | 2 |
-| 0.80 | 6 | 1 |
-| 0.85, 0.90 | 6 | 1 |
-| 0.95 | 4 | 0 |
-| 0.99 | 3 | 0 |
+- 37 Gate calls (13, 12, 12 spans), 0 fallbacks, 0 errors, all `service.name=pi`. Span durations: p50 541 to 560 ms, max 846 to 1084 ms. Run 2 had 13 turns but 12 spans (one turn probably a retry, which does not call System-1); not investigated.
+- 6 to 7 switches per session.
+- Prompt-event probabilities were bimodal: switches at 0.94 or above, stays at 0.24 or below.
+- Mid-range values appear only at turn_end. Other-role probability on the escalations that fired: 0.76, 0.77, 0.79, 0.79, 0.80, 0.83, 0.87. Counted statically, theta 0.80 would have suppressed 4 of those 7 and 0.90 all 7; 0.75 keeps all. One turn_end value of 0.69 correctly stayed.
+- An offline replay of the hysteresis over each session (`analyze.py`) gives 6 switches per session for theta 0.60 to 0.90 and 4 to 6 at 0.95; it is path-dependent (later digests would differ) so the static count above is the more reliable figure.
+
+## Coverage and limits
+
+- **Sessions:** 3 live sessions, 37 Gate calls, one scripted scenario set, one repository fixture. Small n; no real-world long sessions.
+- **Providers:** only `tailnet` presets (glm-flash, glm-max) measured. No Kimi or zai runs, so cache behaviour on those providers is untested.
+- **No long Deliberation stretch:** the longest run on one role was a few turns. TTL expiry and long-stretch cache behaviour were not exercised.
+- pi-otel was not loaded, so `pi.assistant.message` in SigNoz was not used.
 
 ## Recommendation
 
-- **thetaSwitch: keep 0.75.** Prompt-level decisions are insensitive from 0.55 to 0.9. Only the mid-loop escalation (0.76) is threshold-sensitive, and the escalation scenario is the one the hysteresis must not suppress. Evidence is n=13 on one session, so revisit with more mid-loop data.
-- **timeoutMs: keep 1500.** Worst observed call was 846 ms live and 718 ms with a 4k Digest, so 1500 has about 2x headroom.
-- No defaults change, so no follow-up ticket for defaults.
+- **thetaSwitch: keep 0.75.** Prompt-level decisions are insensitive from 0.55 to 0.9. Mid-loop escalations are the threshold-sensitive case, ranging 0.76 to 0.87 across 3 sessions, so anything above 0.75 starts suppressing them. Low-n evidence; revisit with real sessions.
+- **timeoutMs: keep 1500.** Worst Gate call 1084 ms live and 718 ms at 4k Digest.
+- No defaults change, so no follow-up ticket for defaults. Follow-up worth filing only if flash cache misses on return matter for cost.
 
 ## Nits from earlier reviews
 
 - Span shows under `service.name=pi`: confirmed. Global provider registration conflict with another extension: not exercised (pi-otel not loaded).
 - pi-otel virtual vs physical model in `gen_ai.request.model`: **not confirmed live**, because pi-otel was not loaded. Physical model is visible in the assistant message `model` over RPC.
 - Identical deliberation and execution models and a previous model outside both roles: not exercised.
-- Per-turn System-1 load: 13 calls for 8 prompts, 5 of them turn_end. At about 0.5 s each, a tool-heavy turn adds 0.5 s per round trip.
+- Per-turn System-1 load: about 12 to 13 Gate calls per 8 prompts, roughly 5 of them turn_end. At about 0.5 s each, a tool-heavy turn adds 0.5 s per round trip.

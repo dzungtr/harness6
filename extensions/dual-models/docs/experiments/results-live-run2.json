@@ -1,0 +1,378 @@
+{
+ "live": {
+  "sessionMs": 201459,
+  "rows": [
+   {
+    "kind": "trivial",
+    "prompt": "Reply with the single word: ready",
+    "turns": [
+     {
+      "model": "tailnet/@preset/glm-flash",
+      "stop": "stop",
+      "input": 1802,
+      "cacheRead": 5760,
+      "cacheWrite": 0,
+      "output": 3
+     }
+    ]
+   },
+   {
+    "kind": "trivial",
+    "prompt": "What is 17 * 3? Answer with just the number.",
+    "turns": [
+     {
+      "model": "tailnet/@preset/glm-flash",
+      "stop": "stop",
+      "input": 93,
+      "cacheRead": 7488,
+      "cacheWrite": 0,
+      "output": 3
+     }
+    ]
+   },
+   {
+    "kind": "ambiguous",
+    "prompt": "I want to make this project better but I am not sure what di",
+    "turns": [
+     {
+      "model": "tailnet/@preset/glm-max",
+      "stop": "stop",
+      "input": 70,
+      "cacheRead": 7552,
+      "cacheWrite": 0,
+      "output": 250
+     }
+    ]
+   },
+   {
+    "kind": "trivial",
+    "prompt": "Reply with the single word: done",
+    "turns": [
+     {
+      "model": "tailnet/@preset/glm-flash",
+      "stop": "stop",
+      "input": 317,
+      "cacheRead": 7552,
+      "cacheWrite": 0,
+      "output": 3
+     }
+    ]
+   },
+   {
+    "kind": "escalation",
+    "prompt": "Run `node util.test.js` and tell me why it fails and what th",
+    "turns": [
+     {
+      "model": "tailnet/@preset/glm-flash",
+      "stop": "toolUse",
+      "input": 92,
+      "cacheRead": 7808,
+      "cacheWrite": 0,
+      "output": 14
+     },
+     {
+      "err": "429: {\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"z-ai/glm-5.3 is temporarily rate-limited upstream. Please retry shortly, or add your own",
+      "model": "tailnet/@preset/glm-max",
+      "stop": "error",
+      "input": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "output": 0
+     }
+    ]
+   },
+   {
+    "kind": "ambiguous",
+    "prompt": "Should we keep util.js as a single file or restructure into ",
+    "turns": [
+     {
+      "model": "tailnet/@preset/glm-flash",
+      "stop": "toolUse",
+      "input": 66,
+      "cacheRead": 7872,
+      "cacheWrite": 0,
+      "output": 26
+     },
+     {
+      "model": "tailnet/@preset/glm-max",
+      "stop": "toolUse",
+      "input": 258,
+      "cacheRead": 7808,
+      "cacheWrite": 0,
+      "output": 12
+     },
+     {
+      "model": "tailnet/@preset/glm-max",
+      "stop": "stop",
+      "input": 33,
+      "cacheRead": 8064,
+      "cacheWrite": 0,
+      "output": 91
+     }
+    ]
+   },
+   {
+    "kind": "trivial",
+    "prompt": "Now apply the fix to util.js, then rerun `node util.test.js`",
+    "turns": [
+     {
+      "model": "tailnet/@preset/glm-flash",
+      "stop": "toolUse",
+      "input": 262,
+      "cacheRead": 7936,
+      "cacheWrite": 0,
+      "output": 43
+     },
+     {
+      "model": "tailnet/@preset/glm-max",
+      "stop": "toolUse",
+      "input": 140,
+      "cacheRead": 8128,
+      "cacheWrite": 0,
+      "output": 14
+     },
+     {
+      "model": "tailnet/@preset/glm-max",
+      "stop": "stop",
+      "input": 32,
+      "cacheRead": 8256,
+      "cacheWrite": 0,
+      "output": 27
+     }
+    ]
+   },
+   {
+    "kind": "trivial",
+    "prompt": "Reply with the single word: finished",
+    "turns": [
+     {
+      "model": "tailnet/@preset/glm-flash",
+      "stop": "stop",
+      "input": 120,
+      "cacheRead": 8192,
+      "cacheWrite": 0,
+      "output": 3
+     }
+    ]
+   }
+  ],
+  "gateSpans": [
+   {
+    "durationMs": 1032.608,
+    "attrs": {
+     "service.name": "pi",
+     "event": "prompt",
+     "system1.model": "typesafe/jev-1.13",
+     "role.previous": "none",
+     "digest.tokens": 23,
+     "session.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "gen_ai.conversation.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "role.chosen": "execution",
+     "switched": false,
+     "fallback": false,
+     "p.deliberation": 0.03,
+     "p.execution": 0.97
+    },
+    "error": false
+   },
+   {
+    "durationMs": 506.804,
+    "attrs": {
+     "service.name": "pi",
+     "event": "prompt",
+     "system1.model": "typesafe/jev-1.13",
+     "role.previous": "execution",
+     "digest.tokens": 26,
+     "session.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "gen_ai.conversation.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "role.chosen": "execution",
+     "switched": false,
+     "fallback": false,
+     "p.deliberation": 0,
+     "p.execution": 1
+    },
+    "error": false
+   },
+   {
+    "durationMs": 559.684,
+    "attrs": {
+     "service.name": "pi",
+     "event": "prompt",
+     "system1.model": "typesafe/jev-1.13",
+     "role.previous": "execution",
+     "digest.tokens": 45,
+     "session.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "gen_ai.conversation.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "role.chosen": "deliberation",
+     "switched": true,
+     "fallback": false,
+     "p.deliberation": 1,
+     "p.execution": 0
+    },
+    "error": false
+   },
+   {
+    "durationMs": 579.327,
+    "attrs": {
+     "service.name": "pi",
+     "event": "prompt",
+     "system1.model": "typesafe/jev-1.13",
+     "role.previous": "deliberation",
+     "digest.tokens": 23,
+     "session.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "gen_ai.conversation.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "role.chosen": "execution",
+     "switched": true,
+     "fallback": false,
+     "p.deliberation": 0.01,
+     "p.execution": 0.99
+    },
+    "error": false
+   },
+   {
+    "durationMs": 667.447,
+    "attrs": {
+     "service.name": "pi",
+     "event": "prompt",
+     "system1.model": "typesafe/jev-1.13",
+     "role.previous": "execution",
+     "digest.tokens": 40,
+     "session.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "gen_ai.conversation.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "role.chosen": "execution",
+     "switched": false,
+     "fallback": false,
+     "p.deliberation": 0.04,
+     "p.execution": 0.96
+    },
+    "error": false
+   },
+   {
+    "durationMs": 530.476,
+    "attrs": {
+     "service.name": "pi",
+     "event": "turn_end",
+     "system1.model": "typesafe/jev-1.13",
+     "role.previous": "execution",
+     "digest.tokens": 32,
+     "session.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "gen_ai.conversation.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "role.chosen": "deliberation",
+     "switched": true,
+     "fallback": false,
+     "p.deliberation": 0.77,
+     "p.execution": 0.23
+    },
+    "error": false
+   },
+   {
+    "durationMs": 586.716,
+    "attrs": {
+     "service.name": "pi",
+     "event": "turn_end",
+     "system1.model": "typesafe/jev-1.13",
+     "role.previous": "execution",
+     "digest.tokens": 75,
+     "session.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "gen_ai.conversation.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "role.chosen": "deliberation",
+     "switched": true,
+     "fallback": false,
+     "p.deliberation": 0.87,
+     "p.execution": 0.13
+    },
+    "error": false
+   },
+   {
+    "durationMs": 457.674,
+    "attrs": {
+     "service.name": "pi",
+     "event": "turn_end",
+     "system1.model": "typesafe/jev-1.13",
+     "role.previous": "deliberation",
+     "digest.tokens": 28,
+     "session.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "gen_ai.conversation.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "role.chosen": "deliberation",
+     "switched": false,
+     "fallback": false,
+     "p.deliberation": 0.94,
+     "p.execution": 0.06
+    },
+    "error": false
+   },
+   {
+    "durationMs": 518.991,
+    "attrs": {
+     "service.name": "pi",
+     "event": "prompt",
+     "system1.model": "typesafe/jev-1.13",
+     "role.previous": "deliberation",
+     "digest.tokens": 33,
+     "session.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "gen_ai.conversation.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "role.chosen": "execution",
+     "switched": true,
+     "fallback": false,
+     "p.deliberation": 0.06,
+     "p.execution": 0.94
+    },
+    "error": false
+   },
+   {
+    "durationMs": 649.513,
+    "attrs": {
+     "service.name": "pi",
+     "event": "turn_end",
+     "system1.model": "typesafe/jev-1.13",
+     "role.previous": "execution",
+     "digest.tokens": 28,
+     "session.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "gen_ai.conversation.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "role.chosen": "deliberation",
+     "switched": true,
+     "fallback": false,
+     "p.deliberation": 0.83,
+     "p.execution": 0.17
+    },
+    "error": false
+   },
+   {
+    "durationMs": 511.848,
+    "attrs": {
+     "service.name": "pi",
+     "event": "turn_end",
+     "system1.model": "typesafe/jev-1.13",
+     "role.previous": "deliberation",
+     "digest.tokens": 17,
+     "session.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "gen_ai.conversation.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "role.chosen": "deliberation",
+     "switched": false,
+     "fallback": false,
+     "p.deliberation": 0.96,
+     "p.execution": 0.04
+    },
+    "error": false
+   },
+   {
+    "durationMs": 505.797,
+    "attrs": {
+     "service.name": "pi",
+     "event": "prompt",
+     "system1.model": "typesafe/jev-1.13",
+     "role.previous": "deliberation",
+     "digest.tokens": 24,
+     "session.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "gen_ai.conversation.id": "01a11a60-684c-72b0-9c95-23ea9542a1b9",
+     "role.chosen": "execution",
+     "switched": true,
+     "fallback": false,
+     "p.deliberation": 0.02,
+     "p.execution": 0.98
+    },
+    "error": false
+   }
+  ]
+ }
+}

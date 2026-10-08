@@ -8,7 +8,8 @@
  * OTLP/HTTP-JSON receiver, so SigNoz is not needed. Writes results.json next to this file.
  */
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
-import { copyFileSync, existsSync, mkdtempSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { homedir, tmpdir } from "node:os";
@@ -22,6 +23,13 @@ const EXTENSION = resolve(import.meta.dirname, "../../src/index.ts");
 const HERE = import.meta.dirname;
 const args = process.argv.slice(2);
 const phases = new Set(args.length ? args : ["latency", "cache", "live"]);
+
+const tmpDirs: string[] = [];
+const mk = (prefix: string) => {
+	const d = mkdtempSync(join(tmpdir(), prefix));
+	tmpDirs.push(d);
+	return d;
+};
 
 const pct = (xs: number[], p: number) => {
 	const s = [...xs].sort((a, b) => a - b);
@@ -113,7 +121,7 @@ class PiSession {
 
 function agentDir(system1: Record<string, unknown>) {
 	const real = process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
-	const dir = mkdtempSync(join(tmpdir(), "dm-exp-"));
+	const dir = mk("dm-exp-");
 	for (const f of ["models.json", "auth.json"]) if (existsSync(join(real, f))) copyFileSync(join(real, f), join(dir, f));
 	writeFileSync(join(dir, "settings.json"), JSON.stringify({ dualModels: { deliberationModel: DELIBERATION, executionModel: EXECUTION, system1 } }));
 	return dir;
@@ -164,10 +172,10 @@ async function cache() {
 	});
 	await new Promise<void>((r) => stub.listen(0, "127.0.0.1", r));
 	const dir = agentDir({ baseUrl: `http://127.0.0.1:${(stub.address() as AddressInfo).port}/api/v1/systemone` });
-	const cwd = mkdtempSync(join(tmpdir(), "dm-exp-cwd-"));
+	const cwd = mk("dm-exp-cwd-");
 	const pi = new PiSession(dir, cwd, { OPENROUTER_API_KEY: "stub" });
 	try {
-		const padding = "The quick brown fox jumps over the lazy dog. ".repeat(900);
+		const padding = `[run ${randomUUID()}] ` + "The quick brown fox jumps over the lazy dog. ".repeat(900);
 		const rows: ReturnType<typeof slim>[] = [];
 		const ok = "Reply with the single word: ok";
 		for (const p of [`${padding}\n${ok}`, ok, ok, ok, ok]) {
@@ -184,7 +192,7 @@ async function cache() {
 // ---- Phase C: live Gate, real System-1, real models ----
 async function live() {
 	const dir = agentDir({ ...SYSTEM1 });
-	const cwd = mkdtempSync(join(tmpdir(), "dm-exp-cwd-"));
+	const cwd = mk("dm-exp-cwd-");
 	writeFileSync(join(cwd, "util.js"), "export function add(a, b) {\n  return a - b;\n}\n");
 	writeFileSync(join(cwd, "util.test.js"), "import { add } from './util.js';\nif (add(2, 3) !== 5) { console.error('FAIL add(2,3) expected 5 got', add(2, 3)); process.exit(1); }\nconsole.log('ok');\n");
 	writeFileSync(join(cwd, "package.json"), '{"type":"module"}\n');
@@ -220,6 +228,7 @@ try {
 	if (phases.has("live")) await live();
 } finally {
 	otlp.close();
+	for (const d of tmpDirs) rmSync(d, { recursive: true, force: true });
 	writeFileSync(join(HERE, `results-${[...phases].join("-")}.json`), JSON.stringify(results, null, 1));
 }
 console.log(JSON.stringify(results, null, 1));
