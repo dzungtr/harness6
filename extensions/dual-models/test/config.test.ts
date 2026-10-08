@@ -9,7 +9,7 @@ describe("resolveConfig", () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.config).toEqual({
-			...models,
+			reasoningModel: models.deliberationModel, executionModel: models.executionModel,
 			system1: {
 				model: "typesafe/jev-1.13",
 				baseUrl: "https://openrouter.ai/api/v1/systemone",
@@ -24,8 +24,8 @@ describe("resolveConfig", () => {
 				compaction: "execution",
 				"side-call": "execution",
 			},
-			defaultRole: "deliberation",
-			forceDeliberationOnPrompt: false,
+			defaultRole: "reasoning",
+			forceReasoningOnPrompt: false,
 		});
 		expect(DEFAULT_CONFIG.system1.thetaSwitch).toBeGreaterThan(0.5);
 	});
@@ -46,7 +46,7 @@ describe("resolveConfig", () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.config.executionModel).toBe("other/cheap");
-		expect(result.config.deliberationModel).toBe("kimi/k3");
+		expect(result.config.reasoningModel).toBe("kimi/k3");
 		expect(result.config.defaultRole).toBe("execution");
 	});
 
@@ -66,7 +66,7 @@ describe("resolveConfig", () => {
 				digest: { recapTokens: 0 },
 				events: { prompt: "bogus", unknown: "system1" },
 				defaultRole: "system1",
-				forceDeliberationOnPrompt: "yes",
+				forceReasoningOnPrompt: "yes",
 				extra: 1,
 			},
 		});
@@ -83,11 +83,32 @@ describe("resolveConfig", () => {
 			"dualModels.events.prompt",
 			"dualModels.events.unknown",
 			"dualModels.defaultRole",
-			"dualModels.forceDeliberationOnPrompt",
+			"dualModels.forceReasoningOnPrompt",
 			"dualModels.extra",
 		]) {
 			expect(text).toContain(path);
 		}
+	});
+
+	it("hints the new key for forceDeliberationOnPrompt", () => {
+		const result = resolveConfig({ dualModels: { ...models, forceDeliberationOnPrompt: true } });
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.errors).toEqual(["dualModels.forceDeliberationOnPrompt: removed; use forceReasoningOnPrompt"]);
+	});
+
+	it('hints "reasoning" for defaultRole "deliberation"', () => {
+		const result = resolveConfig({ dualModels: { ...models, defaultRole: "deliberation" } });
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.errors).toEqual(['dualModels.defaultRole: removed value "deliberation"; use "reasoning"']);
+	});
+
+	it('hints "reasoning" for events target "deliberation"', () => {
+		const result = resolveConfig({ dualModels: { ...models, events: { compaction: "deliberation" } } });
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.errors).toEqual(['dualModels.events.compaction: removed value "deliberation"; use "reasoning"']);
 	});
 
 	it("rejects thetaSwitch above 1", () => {

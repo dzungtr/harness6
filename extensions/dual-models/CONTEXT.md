@@ -8,8 +8,9 @@ high-reasoning model and a cheaper workhorse model.
 
 ### Roles
 
-**Deliberation Model**:
-The high-reasoning model that serves Deliberation. One of exactly two serving roles.
+**Reasoning Model**:
+The high-reasoning model that serves Reasoning. One of exactly two serving roles.
+(formerly Deliberation Model)
 _Avoid_: high tier, planner, big model
 
 **Execution Model**:
@@ -24,18 +25,19 @@ _Avoid_: router model, classifier, judge, small LLM
 
 ### Phases
 
-**Deliberation**:
+**Reasoning**:
 A stretch of requests served by the high-reasoning model to clarify intent,
 enrich the prompt, and set a course of action.
+(formerly Deliberation)
 _Avoid_: planning mode, thinking turn
 
 **Execution**:
 A stretch of requests served by the workhorse model to carry out the course
-of action set in Deliberation.
+of action set in Reasoning.
 _Avoid_: workhorse turn, doing phase
 
 **Escalation**:
-A switch from Execution back to Deliberation, mid agent loop, because
+A switch from Execution back to Reasoning, mid agent loop, because
 something has gone outside the course of action.
 _Avoid_: fallback, upgrade
 

@@ -41,7 +41,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 const answer = (d: number, e: number) => (res: import("node:http").ServerResponse) => {
 	res.writeHead(200, { "content-type": "application/json" });
-	res.end(JSON.stringify({ answers: { role: { probabilities: { deliberation: d, execution: e } } } }));
+	res.end(JSON.stringify({ answers: { role: { probabilities: { reasoning: d, execution: e } } } }));
 };
 
 function router(system1: Record<string, unknown> = {}) {
@@ -59,7 +59,7 @@ describe("dual_models.gate span", () => {
 		expect(spans[0].attributes).toEqual({
 			event: "prompt",
 			"system1.model": "typesafe/jev-1.13",
-			"p.deliberation": 0.2,
+			"p.reasoning": 0.2,
 			"p.execution": 0.8,
 			"role.chosen": "execution",
 			"role.previous": "none",
@@ -77,7 +77,7 @@ describe("dual_models.gate span", () => {
 		await router()({ ...request, previous: { model: EXEC } } as ModelRouteRequest, ctx);
 		const attrs = exporter.getFinishedSpans()[0].attributes;
 		expect(attrs["role.previous"]).toBe("execution");
-		expect(attrs["role.chosen"]).toBe("deliberation");
+		expect(attrs["role.chosen"]).toBe("reasoning");
 		expect(attrs.switched).toBe(true);
 	});
 
@@ -117,8 +117,8 @@ describe("dual_models.gate span", () => {
 		await router()(request, ctx);
 		const [s] = exporter.getFinishedSpans();
 		expect(s.attributes.fallback).toBe(true);
-		expect(s.attributes["role.chosen"]).toBe("deliberation");
-		expect(s.attributes["p.deliberation"]).toBeUndefined();
+		expect(s.attributes["role.chosen"]).toBe("reasoning");
+		expect(s.attributes["p.reasoning"]).toBeUndefined();
 		expect(s.status.code).toBe(SpanStatusCode.ERROR);
 	});
 

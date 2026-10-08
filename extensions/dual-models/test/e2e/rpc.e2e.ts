@@ -12,7 +12,7 @@ import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const EXECUTION = "tailnet/@preset/glm-flash";
-const DELIBERATION = "tailnet/@preset/glm-max";
+const REASONING = "tailnet/@preset/glm-max";
 const EXTENSION = resolve(import.meta.dirname, "../../src/index.ts");
 
 let stub: Server;
@@ -21,7 +21,7 @@ let pi: ChildProcessWithoutNullStreams;
 const messages: any[] = [];
 let onAgentEnd: (() => void) | undefined;
 
-const gateAnswer = (d: number, e: number) => ({ answers: { role: { type: "choice", probabilities: { deliberation: d, execution: e } } } });
+const gateAnswer = (d: number, e: number) => ({ answers: { role: { type: "choice", probabilities: { reasoning: d, execution: e } } } });
 
 beforeAll(async () => {
 	stub = createServer((req, res) => {
@@ -40,7 +40,7 @@ beforeAll(async () => {
 	for (const f of ["models.json", "auth.json"]) if (existsSync(join(realDir, f))) copyFileSync(join(realDir, f), join(agentDir, f));
 	writeFileSync(
 		join(agentDir, "settings.json"),
-		JSON.stringify({ dualModels: { deliberationModel: DELIBERATION, executionModel: EXECUTION, system1: { baseUrl } } }),
+		JSON.stringify({ dualModels: { deliberationModel: REASONING, executionModel: EXECUTION, system1: { baseUrl } } }),
 	);
 
 	pi = spawn("pi", ["--mode", "rpc", "--no-session", "-e", EXTENSION, "--model", "dual-models/auto"], {
@@ -87,14 +87,14 @@ describe("Dual Models over Pi RPC", () => {
 		const padding = "The quick brown fox jumps over the lazy dog. ".repeat(900);
 		script = [
 			[0.1, 0.9], // first prompt: argmax -> execution
-			[0.95, 0.05], // P(deliberation) >= theta_switch -> deliberation
+			[0.95, 0.05], // P(reasoning) >= theta_switch -> reasoning
 			[0.05, 0.95], // P(execution) >= theta_switch -> execution
 		];
 		await prompt(`${padding}\nReply with the single word: ok`);
 		await prompt("Reply with the single word: ok");
 		await prompt("Reply with the single word: ok");
 
-		expect(messages.map(physical)).toEqual([EXECUTION, DELIBERATION, EXECUTION]);
+		expect(messages.map(physical)).toEqual([EXECUTION, REASONING, EXECUTION]);
 		expect(messages[2].usage.cacheRead).toBeGreaterThan(0);
 	}, 360_000);
 });

@@ -66,7 +66,7 @@ export function startGateSpan(start: GateSpanStart): GateSpan {
 				fallback: !outcome.ok,
 			});
 			if (outcome.ok) {
-				span.setAttributes({ "p.deliberation": outcome.decision.pDeliberation, "p.execution": outcome.decision.pExecution });
+				span.setAttributes({ "p.reasoning": outcome.decision.pReasoning, "p.execution": outcome.decision.pExecution });
 			} else {
 				span.setStatus({ code: SpanStatusCode.ERROR, message: outcome.detail ? `${outcome.failure}: ${outcome.detail}` : outcome.failure });
 			}

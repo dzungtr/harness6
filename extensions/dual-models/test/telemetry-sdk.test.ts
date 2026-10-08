@@ -4,7 +4,7 @@ import { trace } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
 import { flushTelemetry, startGateSpan } from "../src/telemetry.ts";
 
-const ok = { ok: true, decision: { pDeliberation: 0.1, pExecution: 0.9 } } as const;
+const ok = { ok: true, decision: { pReasoning: 0.1, pExecution: 0.9 } } as const;
 const gate = () => startGateSpan({ event: "prompt", system1Model: "m", sessionId: "s1", previous: undefined, digestTokens: 1 }).end(ok, "execution");
 
 describe("dual_models.gate span without a registered provider", () => {

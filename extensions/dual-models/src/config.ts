@@ -1,16 +1,16 @@
-export type Role = "deliberation" | "execution";
+export type Role = "reasoning" | "execution";
 export type EventTarget = "system1" | Role | "previous";
 export const EVENT_NAMES = ["prompt", "turn_end", "retry", "compaction", "side-call"] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 
 export interface DualModelsConfig {
-	deliberationModel: string;
+	reasoningModel: string;
 	executionModel: string;
 	system1: { model: string; baseUrl: string; timeoutMs: number; thetaSwitch: number };
 	digest: { recapTokens: number; toolOutputTokens: number };
 	events: Record<EventName, EventTarget>;
 	defaultRole: Role;
-	forceDeliberationOnPrompt: boolean;
+	forceReasoningOnPrompt: boolean;
 }
 
 export type ConfigResult = { ok: true; config: DualModelsConfig } | { ok: false; errors: string[] };
@@ -30,13 +30,13 @@ export const DEFAULT_CONFIG = {
 		compaction: "execution",
 		"side-call": "execution",
 	},
-	defaultRole: "deliberation",
-	forceDeliberationOnPrompt: false,
-} as const satisfies Omit<DualModelsConfig, "deliberationModel" | "executionModel">;
+	defaultRole: "reasoning",
+	forceReasoningOnPrompt: false,
+} as const satisfies Omit<DualModelsConfig, "reasoningModel" | "executionModel">;
 
 const ROOT = "dualModels";
-const TARGETS: readonly EventTarget[] = ["system1", "deliberation", "execution", "previous"];
-const ROLES: readonly Role[] = ["deliberation", "execution"];
+const TARGETS: readonly EventTarget[] = ["system1", "reasoning", "execution", "previous"];
+const ROLES: readonly Role[] = ["reasoning", "execution"];
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -77,7 +77,10 @@ export function resolveConfig(userSettings: unknown, projectSettings?: unknown):
 	const raw = mergeScopes((userRaw as Obj) ?? {}, (projectRaw as Obj) ?? {});
 	const errors: string[] = [];
 
-	const known = new Set(["deliberationModel", "executionModel", "system1", "digest", "events", "defaultRole", "forceDeliberationOnPrompt"]);
+	if (raw.forceDeliberationOnPrompt !== undefined) {
+		errors.push(`${ROOT}.forceDeliberationOnPrompt: removed; use forceReasoningOnPrompt`);
+	}
+	const known = new Set(["forceDeliberationOnPrompt", "deliberationModel", "executionModel", "system1", "digest", "events", "defaultRole", "forceReasoningOnPrompt"]);
 	for (const key of Object.keys(raw)) if (!known.has(key)) errors.push(`${ROOT}.${key}: unknown key`);
 
 	const modelRef = (key: "deliberationModel" | "executionModel"): string => {
@@ -121,7 +124,7 @@ export function resolveConfig(userSettings: unknown, projectSettings?: unknown):
 		return v;
 	};
 
-	const deliberationModel = modelRef("deliberationModel");
+	const reasoningModel = modelRef("deliberationModel");
 	const executionModel = modelRef("executionModel");
 
 	const s1 = section("system1");
@@ -153,7 +156,9 @@ export function resolveConfig(userSettings: unknown, projectSettings?: unknown):
 	for (const name of EVENT_NAMES) {
 		const v = ev[name];
 		if (v === undefined) continue;
-		if (typeof v !== "string" || !TARGETS.includes(v as EventTarget)) {
+		if (v === "deliberation") {
+			errors.push(`${ROOT}.events.${name}: removed value "deliberation"; use "reasoning"`);
+		} else if (typeof v !== "string" || !TARGETS.includes(v as EventTarget)) {
 			errors.push(`${ROOT}.events.${name}: must be one of ${TARGETS.join(", ")}`);
 		} else {
 			events[name] = v as EventTarget;
@@ -162,19 +167,21 @@ export function resolveConfig(userSettings: unknown, projectSettings?: unknown):
 
 	let defaultRole: Role = DEFAULT_CONFIG.defaultRole;
 	if (raw.defaultRole !== undefined) {
-		if (typeof raw.defaultRole !== "string" || !ROLES.includes(raw.defaultRole as Role)) {
+		if (raw.defaultRole === "deliberation") {
+			errors.push(`${ROOT}.defaultRole: removed value "deliberation"; use "reasoning"`);
+		} else if (typeof raw.defaultRole !== "string" || !ROLES.includes(raw.defaultRole as Role)) {
 			errors.push(`${ROOT}.defaultRole: must be one of ${ROLES.join(", ")}`);
 		} else {
 			defaultRole = raw.defaultRole as Role;
 		}
 	}
 
-	let forceDeliberationOnPrompt: boolean = DEFAULT_CONFIG.forceDeliberationOnPrompt;
-	if (raw.forceDeliberationOnPrompt !== undefined) {
-		if (typeof raw.forceDeliberationOnPrompt !== "boolean") errors.push(`${ROOT}.forceDeliberationOnPrompt: must be a boolean`);
-		else forceDeliberationOnPrompt = raw.forceDeliberationOnPrompt;
+	let forceReasoningOnPrompt: boolean = DEFAULT_CONFIG.forceReasoningOnPrompt;
+	if (raw.forceReasoningOnPrompt !== undefined) {
+		if (typeof raw.forceReasoningOnPrompt !== "boolean") errors.push(`${ROOT}.forceReasoningOnPrompt: must be a boolean`);
+		else forceReasoningOnPrompt = raw.forceReasoningOnPrompt;
 	}
 
 	if (errors.length > 0) return { ok: false, errors };
-	return { ok: true, config: { deliberationModel, executionModel, system1, digest, events, defaultRole, forceDeliberationOnPrompt } };
+	return { ok: true, config: { reasoningModel, executionModel, system1, digest, events, defaultRole, forceReasoningOnPrompt } };
 }
