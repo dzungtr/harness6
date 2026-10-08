@@ -59,7 +59,7 @@ const request = (reason: ModelRouteReason, previous?: unknown, prompt = "do it")
 function router(extra: Record<string, unknown> = {}, compacting = false) {
 	const { system1, ...rest } = extra;
 	const result = resolveConfig({
-		dualModels: { deliberationModel: "kimi/k3", executionModel: "zai/glm-5.3-flash", system1: { baseUrl, ...(system1 as object) }, ...rest },
+		dualModels: { models: { reasoning: { model: "kimi/k3" }, execution: { model: "zai/glm-5.3-flash" } }, system1: { baseUrl, ...(system1 as object) }, ...rest },
 	});
 	const digestCalls: unknown[] = [];
 	const r = createRouter(
@@ -73,7 +73,7 @@ function router(extra: Record<string, unknown> = {}, compacting = false) {
 	return Object.assign(r, { digestCalls });
 }
 
-describe("turn-end Gate with theta_switch hysteresis (default theta 0.75)", () => {
+describe("turn-end Gate (argmax)", () => {
 	beforeEach(() => notify.mockClear());
 
 	it("calls the Gate on continuation with the full Digest including the last tool output", async () => {
@@ -84,23 +84,19 @@ describe("turn-end Gate with theta_switch hysteresis (default theta 0.75)", () =
 		expect(r.digestCalls[0]).toBeUndefined();
 	});
 
-	it("stays on the current role when P(other) is below theta", async () => {
-		probs = [0.74, 0.26];
-		expect((await router()(request("continuation", EXEC), ctx)).model).toBe(EXEC);
-		probs = [0.26, 0.74];
-		expect((await router()(request("continuation", DELIB), ctx)).model).toBe(DELIB);
+	it("follows argmax at P = 0.51 in both directions, from both previous roles", async () => {
+		for (const prev of [EXEC, DELIB]) {
+			probs = [0.51, 0.49];
+			expect((await router()(request("continuation", prev), ctx)).model).toBe(DELIB);
+			probs = [0.49, 0.51];
+			expect((await router()(request("continuation", prev), ctx)).model).toBe(EXEC);
+		}
 	});
 
-	it("switches when P(other) is at or above theta", async () => {
-		probs = [0.75, 0.25];
+	it("sends a tie to reasoning from either previous role", async () => {
+		probs = [0.5, 0.5];
 		expect((await router()(request("continuation", EXEC), ctx)).model).toBe(DELIB);
-		probs = [0.1, 0.9];
-		expect((await router()(request("continuation", DELIB), ctx)).model).toBe(EXEC);
-	});
-
-	it("honours a configured thetaSwitch", async () => {
-		probs = [0.6, 0.4];
-		expect((await router({ system1: { thetaSwitch: 0.6 } })(request("continuation", EXEC), ctx)).model).toBe(DELIB);
+		expect((await router()(request("continuation", DELIB), ctx)).model).toBe(DELIB);
 	});
 
 	it("takes the argmax when there is no previous role", async () => {
@@ -108,11 +104,11 @@ describe("turn-end Gate with theta_switch hysteresis (default theta 0.75)", () =
 		expect((await router()(request("continuation"), ctx)).model).toBe(DELIB);
 	});
 
-	it("applies the same hysteresis to a new prompt after the first", async () => {
+	it("follows argmax on a new prompt after the first", async () => {
 		probs = [0.7, 0.3];
-		expect((await router()(request("user", EXEC), ctx)).model).toBe(EXEC);
-		probs = [0.8, 0.2];
 		expect((await router()(request("user", EXEC), ctx)).model).toBe(DELIB);
+		probs = [0.3, 0.7];
+		expect((await router()(request("user", DELIB), ctx)).model).toBe(EXEC);
 	});
 
 	it("leaves the stale tool output out of the Digest for a new prompt", async () => {
@@ -202,7 +198,7 @@ describe("compaction flag wiring", () => {
 		const dir = mkdtempSync(join(tmpdir(), "dm-c-"));
 		writeFileSync(
 			join(dir, "settings.json"),
-			JSON.stringify({ dualModels: { deliberationModel: "kimi/k3", executionModel: "zai/glm-5.3-flash", events: { compaction: "reasoning" } } }),
+			JSON.stringify({ dualModels: { models: { reasoning: { model: "kimi/k3" }, execution: { model: "zai/glm-5.3-flash" } }, events: { compaction: "reasoning" } } }),
 		);
 		vi.stubEnv("PI_CODING_AGENT_DIR", dir);
 		const fire = (n: string) => handlers[n]?.forEach((h) => h({ type: n }, full));

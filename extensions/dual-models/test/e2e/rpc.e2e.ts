@@ -40,7 +40,7 @@ beforeAll(async () => {
 	for (const f of ["models.json", "auth.json"]) if (existsSync(join(realDir, f))) copyFileSync(join(realDir, f), join(agentDir, f));
 	writeFileSync(
 		join(agentDir, "settings.json"),
-		JSON.stringify({ dualModels: { deliberationModel: REASONING, executionModel: EXECUTION, system1: { baseUrl } } }),
+		JSON.stringify({ dualModels: { models: { reasoning: { model: REASONING }, execution: { model: EXECUTION } }, system1: { baseUrl } } }),
 	);
 
 	pi = spawn("pi", ["--mode", "rpc", "--no-session", "-e", EXTENSION, "--model", "dual-models/auto"], {

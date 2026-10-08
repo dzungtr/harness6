@@ -44,7 +44,10 @@ _Avoid_: fallback, upgrade
 **Gate**:
 The single, mode-agnostic question System-1 answers at every check: which
 serving role should take the next request. The same Gate is asked on a new
-prompt and at every turn end, whatever role served the previous turn.
+prompt and at every turn end, whatever role served the previous turn. The
+Gate follows System-1's argmax (a tie goes to the Reasoning Model). Each
+role's criteria text is configurable (`models.<role>.criteria`) and is the
+only way to tune which role System-1 prefers.
 _Avoid_: escalation check, mode question
 
 ### Artifacts

@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import type { ExtensionContext, ModelRouteReason, ModelRouteRequest } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveConfig } from "../src/config.ts";
+import { DEFAULT_CRITERIA } from "../src/system1.ts";
 import { createRouter } from "../src/route.ts";
 
 const physical = (provider: string, id: string) => ({ provider, id, api: "openai-completions" }) as never;
@@ -81,7 +82,7 @@ const request = (reason: ModelRouteReason, prompt = "fix the failing test"): Mod
 
 function router(extra: Record<string, unknown> = {}, system1: Record<string, unknown> = {}) {
 	const result = resolveConfig({
-		dualModels: { deliberationModel: "kimi/k3", executionModel: "zai/glm-5.3-flash", system1: { baseUrl, ...system1 }, ...extra },
+		dualModels: { models: { reasoning: { model: "kimi/k3" }, execution: { model: "zai/glm-5.3-flash" } }, system1: { baseUrl, ...system1 }, ...extra },
 	});
 	return createRouter(() => result, () => ({ state: digestText, tokens: 1 }));
 }
@@ -109,6 +110,16 @@ describe("System-1 Gate on new prompts", () => {
 		const q = body.questions.role;
 		expect(q.type).toBe("choice");
 		expect(Object.keys(q.criteria).sort()).toEqual(["execution", "reasoning"]);
+	});
+
+	it("sends the default criteria, and an override changes only that role's text", async () => {
+		await router()(request("user"), ctx);
+		expect(seen[0].body.questions.role.criteria).toEqual(DEFAULT_CRITERIA);
+		expect(Object.keys(seen[0].body.questions.role.criteria)).toEqual(["reasoning", "execution"]);
+		expect(seen[0].body.questions.role.instructions).toBe("Which role should take the next request?");
+		await router({ models: { reasoning: { model: "kimi/k3" }, execution: { model: "zai/glm-5.3-flash", criteria: "Prefer this for anything under 20 lines." } } })(request("user"), ctx);
+		expect(seen[1].body.questions.role.criteria).toEqual({ reasoning: DEFAULT_CRITERIA.reasoning, execution: "Prefer this for anything under 20 lines." });
+		expect({ ...seen[1].body.questions.role, criteria: null }).toEqual({ ...seen[0].body.questions.role, criteria: null });
 	});
 
 	it("sends the new prompt to System-1 even when the Recap is empty, truncated head and tail", async () => {

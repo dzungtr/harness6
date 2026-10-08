@@ -39,6 +39,7 @@ export interface GateSpanStart {
 	sessionId: string;
 	previous: Role | undefined;
 	digestTokens: number;
+	criteriaHash: string;
 }
 
 export interface GateSpan {
@@ -54,6 +55,7 @@ export function startGateSpan(start: GateSpanStart): GateSpan {
 			"system1.model": start.system1Model,
 			"role.previous": start.previous ?? "none",
 			"digest.tokens": start.digestTokens,
+			"gate.criteria_hash": start.criteriaHash,
 			"session.id": start.sessionId,
 			"gen_ai.conversation.id": start.sessionId,
 		},

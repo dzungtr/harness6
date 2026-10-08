@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import dualModels from "../src/index.ts";
 
 const settings = {
-	dualModels: { deliberationModel: "kimi/k3", executionModel: "zai/glm-5.3-flash" },
+	dualModels: { models: { reasoning: { model: "kimi/k3" }, execution: { model: "zai/glm-5.3-flash" } } },
 	someOtherExtension: { keep: true },
 };
 
