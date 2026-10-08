@@ -123,7 +123,7 @@ function agentDir(system1: Record<string, unknown>) {
 	const real = process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
 	const dir = mk("dm-exp-");
 	for (const f of ["models.json", "auth.json"]) if (existsSync(join(real, f))) copyFileSync(join(real, f), join(dir, f));
-	writeFileSync(join(dir, "settings.json"), JSON.stringify({ dualModels: { models: { reasoning: { model: DELIBERATION }, execution: { model: EXECUTION } }, system1 } }));
+	writeFileSync(join(dir, "settings.json"), JSON.stringify({ dualModels: { deliberationModel: DELIBERATION, executionModel: EXECUTION, system1 } }));
 	return dir;
 }
 
