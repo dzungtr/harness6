@@ -1,5 +1,5 @@
 import type { ExtensionContext, ModelRouteReason, ModelRouteRequest } from "@earendil-works/pi-coding-agent";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveConfig } from "../src/config.ts";
 import { createRouter } from "../src/route.ts";
 
@@ -8,6 +8,7 @@ const DELIB = physical("kimi", "k3");
 const EXEC = physical("zai", "glm-5.3-flash");
 
 const ctx = {
+	ui: { notify: () => {} },
 	modelRegistry: {
 		find: (provider: string, id: string) => [DELIB, EXEC].find((m: any) => m.provider === provider && m.id === id),
 	},
@@ -22,6 +23,9 @@ function router(extra: Record<string, unknown> = {}) {
 }
 
 describe("route()", () => {
+	beforeEach(() => vi.stubEnv("OPENROUTER_API_KEY", ""));
+	afterEach(() => vi.unstubAllEnvs());
+
 	for (const reason of ["user", "continuation", "retry", "direct"] as const) {
 		it(`returns the deliberation model (default defaultRole) for ${reason}`, async () => {
 			const route = await router()(request(reason), ctx);
