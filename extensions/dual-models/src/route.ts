@@ -43,8 +43,7 @@ function eventOf(request: ModelRouteRequest, compacting: boolean): EventName {
 /**
  * Build the Virtual Model `route()`. The request's reason maps to an event, and the event map names the target:
  * a fixed role, `previous` (the role that served the last response), or `system1`, which asks the Gate.
- * The Gate switches away from the previous role only when the other role's probability reaches `thetaSwitch`,
- * and takes the argmax when there is no previous role. Any System-1 failure is served by `defaultRole`.
+ * The Gate takes System-1's argmax (a tie goes to reasoning). Any System-1 failure is served by `defaultRole`.
  * Only `model` and `thinkingLevel` are returned, so the system prompt and tool list never depend on the role.
  */
 export function createRouter(getConfig: () => ConfigResult, buildDigest: (opts?: { toolOutput?: boolean }) => Digest, isCompacting: () => boolean = () => false): Router {
@@ -81,19 +80,12 @@ export function createRouter(getConfig: () => ConfigResult, buildDigest: (opts?:
 
 		const sent = event === "prompt" ? withPrompt(buildDigest({ toolOutput: false }).state, request, config.digest.toolOutputTokens) : buildDigest().state;
 		const current = roleOfPrevious();
-		const span = startGateSpan({ event, system1Model: config.system1.model, sessionId: ctx.sessionManager.getSessionId(), previous: current, digestTokens: countTokens(sent) });
-		const outcome = await decide(sent, { ...config.system1, signal: request.signal });
+		const span = startGateSpan({ event, system1Model: config.system1.model, sessionId: ctx.sessionManager.getSessionId(), previous: current, digestTokens: countTokens(sent), criteriaHash: config.criteriaHash });
+		const outcome = await decide(sent, { ...config.system1, criteria: config.criteria, signal: request.signal });
 		if (outcome.ok) {
 			failures = 0;
 			const { pReasoning, pExecution } = outcome.decision;
-			let chosen: Role;
-			if (!current) {
-				chosen = pReasoning >= pExecution ? "reasoning" : "execution";
-			} else {
-				const other: Role = current === "reasoning" ? "execution" : "reasoning";
-				const pOther = other === "reasoning" ? pReasoning : pExecution;
-				chosen = pOther >= config.system1.thetaSwitch ? other : current;
-			}
+			const chosen: Role = pReasoning >= pExecution ? "reasoning" : "execution";
 			span.end(outcome, chosen);
 			return pick(chosen);
 		}

@@ -19,7 +19,7 @@ const request = (reason: ModelRouteReason): ModelRouteRequest =>
 	({ model: physical("dual-models", "auto"), thinkingLevel: "medium", reason, messages: [] }) as never;
 
 function router(extra: Record<string, unknown> = {}) {
-	const result = resolveConfig({ dualModels: { deliberationModel: "kimi/k3", executionModel: "zai/glm-5.3-flash", ...extra } });
+	const result = resolveConfig({ dualModels: { models: { reasoning: { model: "kimi/k3" }, execution: { model: "zai/glm-5.3-flash" } }, ...extra } });
 	return createRouter(() => result, () => ({ state: "", tokens: 0 }));
 }
 
@@ -57,7 +57,7 @@ describe("route()", () => {
 	});
 
 	it("throws a clear error when the configured model is not in the catalog", async () => {
-		const missing = createRouter(() => resolveConfig({ dualModels: { deliberationModel: "nope/x", executionModel: "zai/glm-5.3-flash" } }), () => ({ state: "", tokens: 0 }));
+		const missing = createRouter(() => resolveConfig({ dualModels: { models: { reasoning: { model: "nope/x" }, execution: { model: "zai/glm-5.3-flash" } } } }), () => ({ state: "", tokens: 0 }));
 		await expect(missing(request("user"), ctx)).rejects.toThrow(/nope\/x/);
 	});
 });

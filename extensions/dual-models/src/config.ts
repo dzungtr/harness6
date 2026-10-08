@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { DEFAULT_CRITERIA } from "./system1.ts";
 export type Role = "reasoning" | "execution";
 export type EventTarget = "system1" | Role | "previous";
 export const EVENT_NAMES = ["prompt", "turn_end", "retry", "compaction", "side-call"] as const;
@@ -6,7 +8,11 @@ export type EventName = (typeof EVENT_NAMES)[number];
 export interface DualModelsConfig {
 	reasoningModel: string;
 	executionModel: string;
-	system1: { model: string; baseUrl: string; timeoutMs: number; thetaSwitch: number };
+	/** Effective Gate criteria: defaults with the per-role overrides applied. */
+	criteria: Record<Role, string>;
+	/** First 12 hex characters of sha256 over the effective criteria. */
+	criteriaHash: string;
+	system1: { model: string; baseUrl: string; timeoutMs: number };
 	digest: { recapTokens: number; toolOutputTokens: number };
 	events: Record<EventName, EventTarget>;
 	defaultRole: Role;
@@ -20,7 +26,6 @@ export const DEFAULT_CONFIG = {
 		model: "typesafe/jev-1.13",
 		baseUrl: "https://openrouter.ai/api/v1/systemone",
 		timeoutMs: 1500,
-		thetaSwitch: 0.75,
 	},
 	digest: { recapTokens: 2000, toolOutputTokens: 2000 },
 	events: {
@@ -32,7 +37,7 @@ export const DEFAULT_CONFIG = {
 	},
 	defaultRole: "reasoning",
 	forceReasoningOnPrompt: false,
-} as const satisfies Omit<DualModelsConfig, "reasoningModel" | "executionModel">;
+} as const satisfies Omit<DualModelsConfig, "reasoningModel" | "executionModel" | "criteria" | "criteriaHash">;
 
 const ROOT = "dualModels";
 const TARGETS: readonly EventTarget[] = ["system1", "reasoning", "execution", "previous"];
@@ -58,6 +63,13 @@ function mergeScopes(user: Obj, project: Obj): Obj {
 	for (const [key, value] of Object.entries(project)) {
 		out[key] = isObj(value) && isObj(user[key]) ? { ...(user[key] as Obj), ...value } : value;
 	}
+	if (isObj(user.models) && isObj(project.models)) {
+		const models: Obj = { ...user.models };
+		for (const [role, value] of Object.entries(project.models)) {
+			models[role] = isObj(value) && isObj(models[role]) ? { ...(models[role] as Obj), ...value } : value;
+		}
+		out.models = models;
+	}
 	return out;
 }
 
@@ -69,7 +81,7 @@ export function resolveConfig(userSettings: unknown, projectSettings?: unknown):
 	const userRaw = isObj(userSettings) ? userSettings[ROOT] : undefined;
 	const projectRaw = isObj(projectSettings) ? projectSettings[ROOT] : undefined;
 	if (userRaw === undefined && projectRaw === undefined) {
-		return { ok: false, errors: [`${ROOT}: missing. Add a "${ROOT}" key with deliberationModel and executionModel to ~/.pi/agent/settings.json`] };
+		return { ok: false, errors: [`${ROOT}: missing. Add a "${ROOT}" key with models.reasoning.model and models.execution.model to ~/.pi/agent/settings.json`] };
 	}
 	for (const [scope, raw] of [["user", userRaw], ["project", projectRaw]] as const) {
 		if (raw !== undefined && !isObj(raw)) return { ok: false, errors: [`${ROOT}: must be an object (${scope} settings)`] };
@@ -80,17 +92,10 @@ export function resolveConfig(userSettings: unknown, projectSettings?: unknown):
 	if (raw.forceDeliberationOnPrompt !== undefined) {
 		errors.push(`${ROOT}.forceDeliberationOnPrompt: removed; use forceReasoningOnPrompt`);
 	}
-	const known = new Set(["forceDeliberationOnPrompt", "deliberationModel", "executionModel", "system1", "digest", "events", "defaultRole", "forceReasoningOnPrompt"]);
+	if (raw.deliberationModel !== undefined) errors.push(`${ROOT}.deliberationModel: removed; use models.reasoning.model`);
+	if (raw.executionModel !== undefined) errors.push(`${ROOT}.executionModel: removed; use models.execution.model`);
+	const known = new Set(["forceDeliberationOnPrompt", "deliberationModel", "executionModel", "models", "system1", "digest", "events", "defaultRole", "forceReasoningOnPrompt"]);
 	for (const key of Object.keys(raw)) if (!known.has(key)) errors.push(`${ROOT}.${key}: unknown key`);
-
-	const modelRef = (key: "deliberationModel" | "executionModel"): string => {
-		const v = raw[key];
-		if (typeof v !== "string" || !/^[^/\s]+\/\S+$/.test(v)) {
-			errors.push(`${ROOT}.${key}: required, a "provider/modelId" string`);
-			return "";
-		}
-		return v;
-	};
 
 	const section = (key: "system1" | "digest" | "events"): Obj => {
 		const v = raw[key];
@@ -124,11 +129,36 @@ export function resolveConfig(userSettings: unknown, projectSettings?: unknown):
 		return v;
 	};
 
-	const reasoningModel = modelRef("deliberationModel");
-	const executionModel = modelRef("executionModel");
+	const modelsRaw = raw.models;
+	if (modelsRaw !== undefined && !isObj(modelsRaw)) errors.push(`${ROOT}.models: must be an object`);
+	const models: Obj = isObj(modelsRaw) ? modelsRaw : {};
+	checkKeys("models", models, ROLES);
+	const roleSetting = (role: Role): { model: string; criteria: string } => {
+		const v = models[role];
+		if (v !== undefined && !isObj(v)) {
+			errors.push(`${ROOT}.models.${role}: must be an object`);
+			return { model: "", criteria: DEFAULT_CRITERIA[role] };
+		}
+		const obj = v ?? {};
+		checkKeys(`models.${role}`, obj, ["model", "criteria"]);
+		let model = "";
+		if (typeof obj.model !== "string" || !/^[^/\s]+\/\S+$/.test(obj.model)) {
+			errors.push(`${ROOT}.models.${role}.model: required, a "provider/modelId" string`);
+		} else {
+			model = obj.model;
+		}
+		return { model, criteria: str(`models.${role}.criteria`, obj.criteria, DEFAULT_CRITERIA[role]) };
+	};
+	const reasoning = roleSetting("reasoning");
+	const execution = roleSetting("execution");
+	const criteria: Record<Role, string> = { reasoning: reasoning.criteria, execution: execution.criteria };
+	const criteriaHash = createHash("sha256").update(JSON.stringify(criteria)).digest("hex").slice(0, 12);
 
 	const s1 = section("system1");
 	checkKeys("system1", s1, ["model", "baseUrl", "timeoutMs", "thetaSwitch"]);
+	if (s1.thetaSwitch !== undefined) {
+		errors.push(`${ROOT}.system1.thetaSwitch: removed; the Gate follows System-1's argmax. Tune with models.<role>.criteria`);
+	}
 	if (isObj(projectRaw) && isObj(projectRaw.system1) && projectRaw.system1.baseUrl !== undefined) {
 		errors.push(`${ROOT}.system1.baseUrl: not allowed in project settings (it receives the OpenRouter key); set it in user settings`);
 	}
@@ -139,7 +169,6 @@ export function resolveConfig(userSettings: unknown, projectSettings?: unknown):
 		model: str("system1.model", s1.model, DEFAULT_CONFIG.system1.model),
 		baseUrl: str("system1.baseUrl", s1.baseUrl, DEFAULT_CONFIG.system1.baseUrl),
 		timeoutMs: num("system1.timeoutMs", s1.timeoutMs, DEFAULT_CONFIG.system1.timeoutMs, (n) => n > 0, "a positive number"),
-		thetaSwitch: num("system1.thetaSwitch", s1.thetaSwitch, DEFAULT_CONFIG.system1.thetaSwitch, (n) => n > 0.5 && n <= 1, "a number above 0.5 and at most 1"),
 	};
 
 	const dg = section("digest");
@@ -183,5 +212,5 @@ export function resolveConfig(userSettings: unknown, projectSettings?: unknown):
 	}
 
 	if (errors.length > 0) return { ok: false, errors };
-	return { ok: true, config: { reasoningModel, executionModel, system1, digest, events, defaultRole, forceReasoningOnPrompt } };
+	return { ok: true, config: { reasoningModel: reasoning.model, executionModel: execution.model, criteria, criteriaHash, system1, digest, events, defaultRole, forceReasoningOnPrompt } };
 }

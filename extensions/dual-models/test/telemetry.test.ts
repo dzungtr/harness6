@@ -5,6 +5,7 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from "
 import type { ExtensionContext, ModelRouteRequest } from "@earendil-works/pi-coding-agent";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveConfig } from "../src/config.ts";
+import { DEFAULT_CRITERIA } from "../src/system1.ts";
 import { createRouter } from "../src/route.ts";
 
 const exporter = new InMemorySpanExporter();
@@ -44,12 +45,23 @@ const answer = (d: number, e: number) => (res: import("node:http").ServerRespons
 	res.end(JSON.stringify({ answers: { role: { probabilities: { reasoning: d, execution: e } } } }));
 };
 
-function router(system1: Record<string, unknown> = {}) {
-	const result = resolveConfig({ dualModels: { deliberationModel: "kimi/k3", executionModel: "zai/glm-5.3-flash", system1: { baseUrl, ...system1 } } });
+function router(system1: Record<string, unknown> = {}, criteria: Record<string, string> = {}) {
+	const result = resolveConfig({
+		dualModels: { models: { reasoning: { model: "kimi/k3", criteria: criteria.reasoning }, execution: { model: "zai/glm-5.3-flash", criteria: criteria.execution } }, system1: { baseUrl, ...system1 } },
+	});
 	return createRouter(() => result, () => ({ state: "Intent: x", tokens: 7 }));
 }
 
 describe("dual_models.gate span", () => {
+	it("hashes the effective criteria and never exports criteria text", async () => {
+		respond = answer(0.2, 0.8);
+		await router({}, { execution: "SECRET-CRITERIA-TEXT" })(request, ctx);
+		const attrs = exporter.getFinishedSpans()[0].attributes;
+		expect(attrs["gate.criteria_hash"]).toMatch(/^[0-9a-f]{12}$/);
+		expect(JSON.stringify(attrs)).not.toContain("SECRET-CRITERIA-TEXT");
+		for (const v of Object.values(attrs)) expect(String(v)).not.toContain(DEFAULT_CRITERIA.reasoning);
+	});
+
 	it("emits one span per Gate call with every attribute, on the existing global provider", async () => {
 		respond = answer(0.2, 0.8);
 		await router()(request, ctx);
@@ -68,6 +80,7 @@ describe("dual_models.gate span", () => {
 			"digest.tokens": 7,
 			"session.id": "sess-42",
 			"gen_ai.conversation.id": "sess-42",
+			"gate.criteria_hash": expect.stringMatching(/^[0-9a-f]{12}$/),
 		});
 		expect(spans[0].status.code).not.toBe(SpanStatusCode.ERROR);
 	});
@@ -89,8 +102,8 @@ describe("dual_models.gate span", () => {
 		expect(attrs.switched).toBe(true);
 	});
 
-	it("reports switched=false when hysteresis keeps the current role", async () => {
-		respond = answer(0.7, 0.3);
+	it("reports switched=false when argmax matches the previous role", async () => {
+		respond = answer(0.3, 0.7);
 		await router()({ ...request, reason: "continuation", previous: { model: EXEC } } as ModelRouteRequest, ctx);
 		const attrs = exporter.getFinishedSpans()[0].attributes;
 		expect(attrs["role.previous"]).toBe("execution");
