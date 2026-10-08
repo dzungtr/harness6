@@ -30,7 +30,7 @@ function renderRecap(s: RecapState): string {
 }
 
 /** Keep the head and tail of `text` so the result stays within `budget` tokens. */
-function truncateHeadTail(text: string, budget: number): string {
+export function truncateHeadTail(text: string, budget: number): string {
 	if (countTokens(text) <= budget) return text;
 	const marker = "\n[... truncated ...]\n";
 	const keep = Math.max(0, budget * 4 - marker.length - 4);

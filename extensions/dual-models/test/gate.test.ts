@@ -110,6 +110,19 @@ describe("System-1 Gate on new prompts", () => {
 		expect(Object.keys(q.criteria).sort()).toEqual(["deliberation", "execution"]);
 	});
 
+	it("sends the new prompt to System-1 even when the Recap is empty, truncated head and tail", async () => {
+		digestText = "Intent: (not set)\nCourse of action: (not set)";
+		await router({ digest: { toolOutputTokens: 50 } })(request("user", "PROMPT-START add a retry to the uploader"), ctx);
+		const state: string = seen[0].body.state;
+		expect(state).toContain("Intent: (not set)");
+		expect(state).toContain("New prompt:\nPROMPT-START add a retry");
+		seen.length = 0;
+		await router({ digest: { toolOutputTokens: 50 } })(request("user", `HEAD-MARK ${"x".repeat(5000)} TAIL-MARK`), ctx);
+		const big: string = seen[0].body.state;
+		expect(big).toMatch(/HEAD-MARK[\s\S]*truncated[\s\S]*TAIL-MARK/);
+		expect(big.length).toBeLessThan(600);
+	});
+
 	it("never mentions the current role in the Gate wording or state", async () => {
 		const req = { ...request("user"), previous: { model: DELIB } } as ModelRouteRequest;
 		await router()(req, ctx);

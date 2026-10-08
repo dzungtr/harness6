@@ -1,12 +1,28 @@
 import type { ExtensionContext, ModelRoute, ModelRouteRequest } from "@earendil-works/pi-coding-agent";
 import type { ConfigResult, Role } from "./config.ts";
-import type { Digest } from "./recap.ts";
+import { type Digest, truncateHeadTail } from "./recap.ts";
 import { decide } from "./system1.ts";
 
 export type Router = ((request: ModelRouteRequest, ctx: ExtensionContext) => Promise<ModelRoute>) & {
 	/** Clear the failure count and re-enable the Gate (a new session). */
 	reset(): void;
 };
+
+function latestUserText(request: ModelRouteRequest): string {
+	for (let i = request.messages.length - 1; i >= 0; i--) {
+		const m = request.messages[i];
+		if (m.role !== "user") continue;
+		if (typeof m.content === "string") return m.content;
+		return m.content.map((part) => (part.type === "text" ? part.text : "")).filter(Boolean).join("\n");
+	}
+	return "";
+}
+
+/** Append the new prompt to the Digest, truncated head and tail to `budget` tokens. */
+function withPrompt(state: string, request: ModelRouteRequest, budget: number): string {
+	const prompt = latestUserText(request);
+	return prompt ? `${state}\n\nNew prompt:\n${truncateHeadTail(prompt, budget)}` : state;
+}
 
 const MAX_CONSECUTIVE_FAILURES = 3;
 
@@ -35,7 +51,7 @@ export function createRouter(getConfig: () => ConfigResult, buildDigest: () => D
 		if (config.forceDeliberationOnPrompt) return pick("deliberation");
 		if (failures >= MAX_CONSECUTIVE_FAILURES) return pick(config.defaultRole);
 
-		const outcome = await decide(buildDigest().state, { ...config.system1, signal: request.signal });
+		const outcome = await decide(withPrompt(buildDigest().state, request, config.digest.toolOutputTokens), { ...config.system1, signal: request.signal });
 		if (outcome.ok) {
 			failures = 0;
 			const { pDeliberation, pExecution } = outcome.decision;
