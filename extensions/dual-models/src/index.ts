@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIG_DIR_NAME, type ExtensionAPI, type ExtensionContext, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { type ConfigResult, resolveConfig } from "./config.ts";
+import { type ConfigResult, DEFAULT_CONFIG, resolveConfig } from "./config.ts";
+import { registerRecap } from "./recap.ts";
 import { createRouter } from "./route.ts";
 
 function readJson(path: string): { value?: unknown; error?: string } {
@@ -29,6 +30,8 @@ export default function dualModels(pi: ExtensionAPI) {
 		current = loadConfig(ctx.cwd, ctx.isProjectTrusted());
 		if (!current.ok) ctx.ui.notify(`Dual Models: invalid config\n${current.errors.join("\n")}`, "error");
 	});
+
+	registerRecap(pi, () => (current.ok ? current.config.digest : DEFAULT_CONFIG.digest));
 
 	pi.registerVirtualModel({
 		provider: "dual-models",

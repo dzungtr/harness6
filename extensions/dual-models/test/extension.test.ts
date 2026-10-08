@@ -14,8 +14,13 @@ function load() {
 	const handlers: Record<string, (...a: any[]) => unknown> = {};
 	let virtualModel: any;
 	dualModels({
-		on: (name: string, h: any) => void (handlers[name] = h),
+		on: (name: string, h: any) => {
+			const prev = handlers[name];
+			handlers[name] = prev ? (...a: any[]) => (prev(...a), h(...a)) : h;
+		},
 		registerVirtualModel: (m: unknown) => void (virtualModel = m),
+		registerTool: () => {},
+		appendEntry: () => {},
 	} as never);
 	return { handlers, virtualModel };
 }
@@ -26,6 +31,7 @@ function ctxFor(cwd: string, notify = vi.fn()) {
 		cwd,
 		isProjectTrusted: () => false,
 		ui: { notify },
+		sessionManager: { getBranch: () => [] },
 		modelRegistry: { find: () => m },
 		m,
 	};
