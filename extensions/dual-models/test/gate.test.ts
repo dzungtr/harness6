@@ -17,6 +17,7 @@ interface Seen {
 let server: Server;
 let baseUrl: string;
 let seen: Seen[];
+let digestText = "fix the failing test";
 let respond: (res: ServerResponse) => void;
 
 const json = (status: number, body: unknown) => (res: ServerResponse) => {
@@ -40,6 +41,7 @@ const answer = (pDeliberation: number, pExecution: number) =>
 
 beforeEach(async () => {
 	seen = [];
+	digestText = "fix the failing test";
 	respond = answer(0.1, 0.9);
 	server = createServer((req: IncomingMessage, res) => {
 		let data = "";
@@ -80,7 +82,7 @@ function router(extra: Record<string, unknown> = {}, system1: Record<string, unk
 	const result = resolveConfig({
 		dualModels: { deliberationModel: "kimi/k3", executionModel: "zai/glm-5.3-flash", system1: { baseUrl, ...system1 }, ...extra },
 	});
-	return createRouter(() => result);
+	return createRouter(() => result, () => ({ state: digestText, tokens: 1 }));
 }
 
 describe("System-1 Gate on new prompts", () => {
@@ -95,7 +97,8 @@ describe("System-1 Gate on new prompts", () => {
 	});
 
 	it("sends a bearer key and {model, state, questions} with a record-keyed choice Gate", async () => {
-		await router()(request("user", "hello there"), ctx);
+		digestText = "Intent: hello there";
+		await router()(request("user"), ctx);
 		const { auth, body, url } = seen[0];
 		expect(url).toBe("/api/v1/systemone");
 		expect(auth).toBe("Bearer sk-test");
@@ -163,6 +166,18 @@ describe("System-1 Gate on new prompts", () => {
 		respond = answer(0.1, 0.9);
 		expect((await r(request("user"), ctx)).model).toBe(DELIB);
 		expect(seen).toHaveLength(3);
+	});
+
+	it("reset() re-enables the Gate after it was disabled", async () => {
+		respond = json(500, {});
+		const r = router();
+		for (let i = 0; i < 3; i++) await r(request("user"), ctx);
+		await r(request("user"), ctx);
+		expect(seen).toHaveLength(3);
+		r.reset();
+		respond = answer(0.9, 0.1);
+		expect((await r(request("user"), ctx)).model).toBe(DELIB);
+		expect(seen).toHaveLength(4);
 	});
 
 	it("a success resets the consecutive failure count", async () => {

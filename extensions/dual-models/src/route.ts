@@ -1,9 +1,12 @@
 import type { ExtensionContext, ModelRoute, ModelRouteRequest } from "@earendil-works/pi-coding-agent";
 import type { ConfigResult, Role } from "./config.ts";
-import { buildDigest } from "./digest.ts";
+import type { Digest } from "./recap.ts";
 import { decide } from "./system1.ts";
 
-export type Router = (request: ModelRouteRequest, ctx: ExtensionContext) => Promise<ModelRoute>;
+export type Router = ((request: ModelRouteRequest, ctx: ExtensionContext) => Promise<ModelRoute>) & {
+	/** Clear the failure count and re-enable the Gate (a new session). */
+	reset(): void;
+};
 
 const MAX_CONSECUTIVE_FAILURES = 3;
 
@@ -12,10 +15,10 @@ const MAX_CONSECUTIVE_FAILURES = 3;
  * argmax role. Every other reason, and any System-1 failure, is served by `defaultRole`.
  * Only `model` and `thinkingLevel` are returned, so the system prompt and tool list never depend on the role.
  */
-export function createRouter(getConfig: () => ConfigResult): Router {
+export function createRouter(getConfig: () => ConfigResult, buildDigest: () => Digest): Router {
 	let failures = 0;
 
-	return async (request, ctx) => {
+	const route = async (request: ModelRouteRequest, ctx: ExtensionContext): Promise<ModelRoute> => {
 		const result = getConfig();
 		if (!result.ok) throw new Error(`Dual Models config is invalid:\n${result.errors.join("\n")}`);
 		const { config } = result;
@@ -32,7 +35,7 @@ export function createRouter(getConfig: () => ConfigResult): Router {
 		if (config.forceDeliberationOnPrompt) return pick("deliberation");
 		if (failures >= MAX_CONSECUTIVE_FAILURES) return pick(config.defaultRole);
 
-		const outcome = await decide(buildDigest(request), { ...config.system1, signal: request.signal });
+		const outcome = await decide(buildDigest().state, { ...config.system1, signal: request.signal });
 		if (outcome.ok) {
 			failures = 0;
 			const { pDeliberation, pExecution } = outcome.decision;
@@ -48,4 +51,5 @@ export function createRouter(getConfig: () => ConfigResult): Router {
 		}
 		return pick(config.defaultRole);
 	};
+	return Object.assign(route, { reset: () => void (failures = 0) });
 }

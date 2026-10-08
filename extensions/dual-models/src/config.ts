@@ -41,6 +41,17 @@ const ROLES: readonly Role[] = ["deliberation", "execution"];
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 
+function isSafeBaseUrl(value: string): boolean {
+	try {
+		const u = new URL(value);
+		if (u.username || u.password) return false;
+		if (u.protocol === "https:") return true;
+		return u.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
+	} catch {
+		return false;
+	}
+}
+
 /** Per-key shallow merge of the nested objects, so a project override can change one field. */
 function mergeScopes(user: Obj, project: Obj): Obj {
 	const out: Obj = { ...user };
@@ -115,6 +126,12 @@ export function resolveConfig(userSettings: unknown, projectSettings?: unknown):
 
 	const s1 = section("system1");
 	checkKeys("system1", s1, ["model", "baseUrl", "timeoutMs", "thetaSwitch"]);
+	if (isObj(projectRaw) && isObj(projectRaw.system1) && projectRaw.system1.baseUrl !== undefined) {
+		errors.push(`${ROOT}.system1.baseUrl: not allowed in project settings (it receives the OpenRouter key); set it in user settings`);
+	}
+	if (typeof s1.baseUrl === "string" && s1.baseUrl.trim() !== "" && !isSafeBaseUrl(s1.baseUrl)) {
+		errors.push(`${ROOT}.system1.baseUrl: must be an https URL (http only for localhost)`);
+	}
 	const system1 = {
 		model: str("system1.model", s1.model, DEFAULT_CONFIG.system1.model),
 		baseUrl: str("system1.baseUrl", s1.baseUrl, DEFAULT_CONFIG.system1.baseUrl),

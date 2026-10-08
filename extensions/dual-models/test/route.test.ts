@@ -19,7 +19,7 @@ const request = (reason: ModelRouteReason): ModelRouteRequest =>
 
 function router(extra: Record<string, unknown> = {}) {
 	const result = resolveConfig({ dualModels: { deliberationModel: "kimi/k3", executionModel: "zai/glm-5.3-flash", ...extra } });
-	return createRouter(() => result);
+	return createRouter(() => result, () => ({ state: "", tokens: 0 }));
 }
 
 describe("route()", () => {
@@ -47,12 +47,12 @@ describe("route()", () => {
 	});
 
 	it("throws the validation errors when config is invalid", async () => {
-		const bad = createRouter(() => resolveConfig({}));
+		const bad = createRouter(() => resolveConfig({}), () => ({ state: "", tokens: 0 }));
 		await expect(bad(request("user"), ctx)).rejects.toThrow(/dualModels/);
 	});
 
 	it("throws a clear error when the configured model is not in the catalog", async () => {
-		const missing = createRouter(() => resolveConfig({ dualModels: { deliberationModel: "nope/x", executionModel: "zai/glm-5.3-flash" } }));
+		const missing = createRouter(() => resolveConfig({ dualModels: { deliberationModel: "nope/x", executionModel: "zai/glm-5.3-flash" } }), () => ({ state: "", tokens: 0 }));
 		await expect(missing(request("user"), ctx)).rejects.toThrow(/nope\/x/);
 	});
 });
