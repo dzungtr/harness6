@@ -26,18 +26,23 @@ export function loadConfig(cwd: string, projectTrusted: boolean): ConfigResult {
 export default function dualModels(pi: ExtensionAPI) {
 	let current: ConfigResult = { ok: false, errors: ["dualModels: config not loaded yet (session_start has not fired)"] };
 
+	let router: ReturnType<typeof createRouter>;
+
 	pi.on("session_start", (_event, ctx: ExtensionContext) => {
+		router.reset();
 		current = loadConfig(ctx.cwd, ctx.isProjectTrusted());
 		if (!current.ok) ctx.ui.notify(`Dual Models: invalid config\n${current.errors.join("\n")}`, "error");
 	});
 
-	registerRecap(pi, () => (current.ok ? current.config.digest : DEFAULT_CONFIG.digest));
+	const recap = registerRecap(pi, () => (current.ok ? current.config.digest : DEFAULT_CONFIG.digest));
+
+	router = createRouter(() => current, recap.buildDigest);
 
 	pi.registerVirtualModel({
 		provider: "dual-models",
 		id: "auto",
 		name: "Dual Models",
 		thinkingLevels: ["off", "minimal", "low", "medium", "high"],
-		route: createRouter(() => current),
+		route: router,
 	});
 }

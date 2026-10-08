@@ -64,7 +64,7 @@ describe("extension wiring", () => {
 		const ctx = ctxFor(agentDir);
 		handlers.session_start({ type: "session_start", reason: "startup" }, ctx);
 		expect(ctx.ui.notify).not.toHaveBeenCalled();
-		const route = await virtualModel.route({ reason: "user", thinkingLevel: "low", messages: [] }, ctx);
+		const route = await virtualModel.route({ reason: "continuation", thinkingLevel: "low", messages: [] }, ctx);
 		expect(route.model).toBe(ctx.m);
 		vi.unstubAllEnvs();
 	});

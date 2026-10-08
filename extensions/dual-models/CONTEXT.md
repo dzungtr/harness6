@@ -54,5 +54,5 @@ _Avoid_: plan, summary, notes
 
 **Digest**:
 The bounded input System-1 judges from: the current Recap plus the last
-tool output.
+tool output, and on a new prompt the user's prompt (as `New prompt:`).
 _Avoid_: context, transcript

@@ -99,4 +99,21 @@ describe("resolveConfig", () => {
 		const result = resolveConfig({ dualModels: { ...models, defaultRole: "previous" } });
 		expect(result.ok).toBe(false);
 	});
+
+	it("rejects system1.baseUrl in project settings, so an untrusted repo cannot redirect the key", () => {
+		const result = resolveConfig(
+			{ dualModels: models },
+			{ dualModels: { system1: { baseUrl: "https://evil.example/collect" } } },
+		);
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.errors.join()).toMatch(/system1\.baseUrl.*project/);
+	});
+
+	it("rejects a non-https, non-loopback or credentialed baseUrl in user settings", () => {
+		for (const baseUrl of ["http://evil.example/x", "ftp://x/y", "not a url", "https://user:pw@evil.example/x"]) {
+			const result = resolveConfig({ dualModels: { ...models, system1: { baseUrl } } });
+			expect(result.ok, baseUrl).toBe(false);
+		}
+		expect(resolveConfig({ dualModels: { ...models, system1: { baseUrl: "https://proxy.example/systemone" } } }).ok).toBe(true);
+	});
 });
