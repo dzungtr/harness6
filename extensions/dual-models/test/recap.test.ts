@@ -99,7 +99,7 @@ describe("digest builder", () => {
 		const digest = h.recap.buildDigest();
 		expect(digest.state).toContain("goal");
 		expect(digest.state).toContain("all green");
-		expect(digest.state).not.toMatch(/role|deliberation|execution/i);
+		expect(digest.state).not.toMatch(/role|reasoning|execution/i);
 		expect(digest.tokens).toBe(tokens(digest.state));
 	});
 

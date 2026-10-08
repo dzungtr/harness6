@@ -27,7 +27,7 @@ beforeEach(async () => {
 		req.on("end", () => {
 			bodies.push(JSON.parse(data));
 			res.writeHead(200, { "content-type": "application/json" });
-			res.end(JSON.stringify({ answers: { role: { type: "choice", probabilities: { deliberation: probs[0], execution: probs[1] } } } }));
+			res.end(JSON.stringify({ answers: { role: { type: "choice", probabilities: { reasoning: probs[0], execution: probs[1] } } } }));
 		});
 	});
 	await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
@@ -135,7 +135,7 @@ describe("turn-end Gate with theta_switch hysteresis (default theta 0.75)", () =
 
 describe("event map", () => {
 	it("defaults: retry -> previous, compaction -> execution, direct -> execution, without a Gate call", async () => {
-		const r = router({ defaultRole: "deliberation" });
+		const r = router({ defaultRole: "reasoning" });
 		expect((await r(request("retry", DELIB), ctx)).model).toBe(DELIB);
 		expect((await r(request("retry", EXEC), ctx)).model).toBe(EXEC);
 		expect((await r(request("direct", DELIB), ctx)).model).toBe(EXEC);
@@ -148,13 +148,13 @@ describe("event map", () => {
 	});
 
 	it("tells a compaction summary call from a side call by the compaction flag", async () => {
-		const events = { compaction: "deliberation", "side-call": "execution" };
+		const events = { compaction: "reasoning", "side-call": "execution" };
 		expect((await router({ events }, true)(request("direct", EXEC), ctx)).model).toBe(DELIB);
 		expect((await router({ events }, false)(request("direct", DELIB), ctx)).model).toBe(EXEC);
 	});
 
 	it("overrides map each event to a role or previous; a fixed role skips the Gate", async () => {
-		const events = { prompt: "execution", turn_end: "deliberation", retry: "execution", "side-call": "previous" };
+		const events = { prompt: "execution", turn_end: "reasoning", retry: "execution", "side-call": "previous" };
 		const r = router({ events });
 		expect((await r(request("user", DELIB), ctx)).model).toBe(EXEC);
 		expect((await r(request("continuation", EXEC), ctx)).model).toBe(DELIB);
@@ -202,7 +202,7 @@ describe("compaction flag wiring", () => {
 		const dir = mkdtempSync(join(tmpdir(), "dm-c-"));
 		writeFileSync(
 			join(dir, "settings.json"),
-			JSON.stringify({ dualModels: { deliberationModel: "kimi/k3", executionModel: "zai/glm-5.3-flash", events: { compaction: "deliberation" } } }),
+			JSON.stringify({ dualModels: { deliberationModel: "kimi/k3", executionModel: "zai/glm-5.3-flash", events: { compaction: "reasoning" } } }),
 		);
 		vi.stubEnv("PI_CODING_AGENT_DIR", dir);
 		const fire = (n: string) => handlers[n]?.forEach((h) => h({ type: n }, full));

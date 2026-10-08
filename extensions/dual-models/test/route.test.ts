@@ -28,7 +28,7 @@ describe("route()", () => {
 	afterEach(() => vi.unstubAllEnvs());
 
 	for (const reason of ["user", "continuation", "retry"] as const) {
-		it(`returns the deliberation model (default defaultRole) for ${reason}`, async () => {
+		it(`returns the reasoning model (default defaultRole) for ${reason}`, async () => {
 			const route = await router()(request(reason), ctx);
 			expect(route.model).toBe(DELIB);
 			expect(route.thinkingLevel).toBe("medium");

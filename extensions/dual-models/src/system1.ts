@@ -1,7 +1,7 @@
 import type { Role } from "./config.ts";
 
 export interface Decision {
-	pDeliberation: number;
+	pReasoning: number;
 	pExecution: number;
 }
 
@@ -23,7 +23,7 @@ export const GATE_QUESTION = {
 	type: "choice",
 	instructions: "Which role should take the next request?",
 	criteria: {
-		deliberation:
+		reasoning:
 			"The request needs intent clarification, planning, design or judgment: it is ambiguous, complex, open-ended, risky, or something unexpected needs to be understood before acting.",
 		execution:
 			"The request is clear and routine: the next step is well defined, such as a mechanical edit, running a command, or carrying out an agreed course of action.",
@@ -46,12 +46,12 @@ export async function decide(digest: string, opts: System1Options): Promise<Deci
 		});
 		if (!res.ok) return { ok: false, failure: "http", detail: `HTTP ${res.status}` };
 		const probs = ((await res.json()) as any)?.answers?.[GATE_NAME]?.probabilities;
-		const pDeliberation = probs?.deliberation;
+		const pReasoning = probs?.reasoning;
 		const pExecution = probs?.execution;
-		if (typeof pDeliberation !== "number" || typeof pExecution !== "number") {
+		if (typeof pReasoning !== "number" || typeof pExecution !== "number") {
 			return { ok: false, failure: "malformed", detail: "response has no choice probabilities" };
 		}
-		return { ok: true, decision: { pDeliberation, pExecution } };
+		return { ok: true, decision: { pReasoning, pExecution } };
 	} catch (e) {
 		if (timeout.aborted) return { ok: false, failure: "timeout", detail: `no answer within ${opts.timeoutMs} ms` };
 		return { ok: false, failure: "http", detail: (e as Error).message };

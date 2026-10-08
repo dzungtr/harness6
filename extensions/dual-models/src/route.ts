@@ -57,7 +57,7 @@ export function createRouter(getConfig: () => ConfigResult, buildDigest: (opts?:
 
 		const split = (ref: string): [string, string] => [ref.slice(0, ref.indexOf("/")), ref.slice(ref.indexOf("/") + 1)];
 		const pick = (role: Role): ModelRoute => {
-			const [provider, id] = split(role === "deliberation" ? config.deliberationModel : config.executionModel);
+			const [provider, id] = split(role === "reasoning" ? config.reasoningModel : config.executionModel);
 			const model = ctx.modelRegistry.find(provider, id);
 			if (!model) throw new Error(`Dual Models: model ${provider}/${id} is not in the Pi catalog`);
 			return { model, thinkingLevel: request.thinkingLevel };
@@ -65,15 +65,15 @@ export function createRouter(getConfig: () => ConfigResult, buildDigest: (opts?:
 		const roleOfPrevious = (): Role | undefined => {
 			const prev = request.previous?.model;
 			if (!prev) return undefined;
-			for (const role of ["deliberation", "execution"] as const) {
-				const [provider, id] = split(role === "deliberation" ? config.deliberationModel : config.executionModel);
+			for (const role of ["reasoning", "execution"] as const) {
+				const [provider, id] = split(role === "reasoning" ? config.reasoningModel : config.executionModel);
 				if (prev.provider === provider && prev.id === id) return role;
 			}
 			return undefined;
 		};
 
 		const event = eventOf(request, isCompacting());
-		if (event === "prompt" && config.forceDeliberationOnPrompt) return pick("deliberation");
+		if (event === "prompt" && config.forceReasoningOnPrompt) return pick("reasoning");
 		const target = config.events[event];
 		if (target === "previous") return pick(roleOfPrevious() ?? config.defaultRole);
 		if (target !== "system1") return pick(target);
@@ -85,13 +85,13 @@ export function createRouter(getConfig: () => ConfigResult, buildDigest: (opts?:
 		const outcome = await decide(sent, { ...config.system1, signal: request.signal });
 		if (outcome.ok) {
 			failures = 0;
-			const { pDeliberation, pExecution } = outcome.decision;
+			const { pReasoning, pExecution } = outcome.decision;
 			let chosen: Role;
 			if (!current) {
-				chosen = pDeliberation >= pExecution ? "deliberation" : "execution";
+				chosen = pReasoning >= pExecution ? "reasoning" : "execution";
 			} else {
-				const other: Role = current === "deliberation" ? "execution" : "deliberation";
-				const pOther = other === "deliberation" ? pDeliberation : pExecution;
+				const other: Role = current === "reasoning" ? "execution" : "reasoning";
+				const pOther = other === "reasoning" ? pReasoning : pExecution;
 				chosen = pOther >= config.system1.thetaSwitch ? other : current;
 			}
 			span.end(outcome, chosen);

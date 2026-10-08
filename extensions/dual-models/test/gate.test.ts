@@ -24,13 +24,13 @@ const json = (status: number, body: unknown) => (res: ServerResponse) => {
 	res.writeHead(status, { "content-type": "application/json" });
 	res.end(JSON.stringify(body));
 };
-const answer = (pDeliberation: number, pExecution: number) =>
+const answer = (pReasoning: number, pExecution: number) =>
 	json(200, {
 		answers: {
 			role: {
 				type: "choice",
-				choice: pDeliberation >= pExecution ? "deliberation" : "execution",
-				probabilities: { deliberation: pDeliberation, execution: pExecution },
+				choice: pReasoning >= pExecution ? "reasoning" : "execution",
+				probabilities: { reasoning: pReasoning, execution: pExecution },
 				confidence: 0.9,
 			},
 		},
@@ -108,7 +108,7 @@ describe("System-1 Gate on new prompts", () => {
 		expect(Array.isArray(body.questions)).toBe(false);
 		const q = body.questions.role;
 		expect(q.type).toBe("choice");
-		expect(Object.keys(q.criteria).sort()).toEqual(["deliberation", "execution"]);
+		expect(Object.keys(q.criteria).sort()).toEqual(["execution", "reasoning"]);
 	});
 
 	it("sends the new prompt to System-1 even when the Recap is empty, truncated head and tail", async () => {
@@ -139,8 +139,8 @@ describe("System-1 Gate on new prompts", () => {
 		expect(seen).toHaveLength(0);
 	});
 
-	it("forceDeliberationOnPrompt returns the deliberation model without a call", async () => {
-		const route = await router({ forceDeliberationOnPrompt: true, defaultRole: "execution" })(request("user"), ctx);
+	it("forceReasoningOnPrompt returns the reasoning model without a call", async () => {
+		const route = await router({ forceReasoningOnPrompt: true, defaultRole: "execution" })(request("user"), ctx);
 		expect(route.model).toBe(DELIB);
 		expect(seen).toHaveLength(0);
 	});
