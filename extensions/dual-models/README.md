@@ -16,7 +16,7 @@ Settings live under the `dualModels` key of `~/.pi/agent/settings.json` (user) a
       "execution": { "model": "provider/modelId", "criteria": "optional text" }
     },
     "system1": { "model": "typesafe/jev-1.13", "baseUrl": "https://openrouter.ai/api/v1/systemone", "timeoutMs": 1500 },
-    "digest": { "recapTokens": 2000, "toolOutputTokens": 2000 },
+    "digest": { "recapTokens": 2000, "stepTokens": 1200 },
     "events": { "prompt": "system1", "turn_end": "system1", "retry": "previous", "compaction": "execution", "side-call": "execution" },
     "defaultRole": "reasoning",
     "forceReasoningOnPrompt": false
@@ -32,7 +32,7 @@ Settings live under the `dualModels` key of `~/.pi/agent/settings.json` (user) a
 | `system1.model` | `typesafe/jev-1.13` | System-1 model |
 | `system1.baseUrl` | OpenRouter System-1 endpoint | User settings only. https, or http for localhost |
 | `system1.timeoutMs` | `1500` | Positive number |
-| `digest.recapTokens`, `digest.toolOutputTokens` | `2000` | Positive integers |
+| `digest.recapTokens`, `digest.stepTokens` | `2000`, `1200` | Positive integers |
 | `events.<event>` | see above | One of `system1`, `reasoning`, `execution`, `previous` |
 | `defaultRole` | `reasoning` | Serves the request when System-1 fails |
 | `forceReasoningOnPrompt` | `false` | Skip the Gate on a new prompt |
@@ -46,6 +46,7 @@ Unknown keys, including under `models` and `models.<role>`, are reported.
 | `deliberationModel` | `models.reasoning.model` |
 | `executionModel` | `models.execution.model` |
 | `system1.thetaSwitch` | removed; tune with `models.<role>.criteria` |
+| `digest.toolOutputTokens` | `digest.stepTokens`; the Gate now reads the `Previous step:` block |
 
 ## Tuning with criteria
 

@@ -13,7 +13,7 @@ export interface DualModelsConfig {
 	/** First 12 hex characters of sha256 over the effective criteria. */
 	criteriaHash: string;
 	system1: { model: string; baseUrl: string; timeoutMs: number };
-	digest: { recapTokens: number; toolOutputTokens: number };
+	digest: { recapTokens: number; stepTokens: number };
 	events: Record<EventName, EventTarget>;
 	defaultRole: Role;
 	forceReasoningOnPrompt: boolean;
@@ -27,7 +27,7 @@ export const DEFAULT_CONFIG = {
 		baseUrl: "https://openrouter.ai/api/v1/systemone",
 		timeoutMs: 1500,
 	},
-	digest: { recapTokens: 2000, toolOutputTokens: 2000 },
+	digest: { recapTokens: 2000, stepTokens: 1200 },
 	events: {
 		prompt: "system1",
 		turn_end: "system1",
@@ -172,11 +172,14 @@ export function resolveConfig(userSettings: unknown, projectSettings?: unknown):
 	};
 
 	const dg = section("digest");
-	checkKeys("digest", dg, ["recapTokens", "toolOutputTokens"]);
+	checkKeys("digest", dg, ["recapTokens", "stepTokens", "toolOutputTokens"]);
+	if (dg.toolOutputTokens !== undefined) {
+		errors.push(`${ROOT}.digest.toolOutputTokens: removed; the Gate now reads the Previous step block, so use digest.stepTokens`);
+	}
 	const posInt = (n: number) => Number.isInteger(n) && n > 0;
 	const digest = {
 		recapTokens: num("digest.recapTokens", dg.recapTokens, DEFAULT_CONFIG.digest.recapTokens, posInt, "a positive integer"),
-		toolOutputTokens: num("digest.toolOutputTokens", dg.toolOutputTokens, DEFAULT_CONFIG.digest.toolOutputTokens, posInt, "a positive integer"),
+		stepTokens: num("digest.stepTokens", dg.stepTokens, DEFAULT_CONFIG.digest.stepTokens, posInt, "a positive integer"),
 	};
 
 	const ev = section("events");

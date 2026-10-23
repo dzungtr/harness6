@@ -1,29 +1,15 @@
 import type { ExtensionContext, ModelRoute, ModelRouteRequest } from "@earendil-works/pi-coding-agent";
 import type { ConfigResult, EventName, Role } from "./config.ts";
-import { countTokens, type Digest, truncateHeadTail } from "./recap.ts";
+import type { Digest } from "./recap.ts";
+import { renderNewPrompt } from "./step.ts";
 import { decide } from "./system1.ts";
 import { startGateSpan } from "./telemetry.ts";
+import { countTokens } from "./text.ts";
 
 export type Router = ((request: ModelRouteRequest, ctx: ExtensionContext) => Promise<ModelRoute>) & {
 	/** Clear the failure count and re-enable the Gate (a new session). */
 	reset(): void;
 };
-
-function latestUserText(request: ModelRouteRequest): string {
-	for (let i = request.messages.length - 1; i >= 0; i--) {
-		const m = request.messages[i];
-		if (m.role !== "user") continue;
-		if (typeof m.content === "string") return m.content;
-		return m.content.map((part) => (part.type === "text" ? part.text : "")).filter(Boolean).join("\n");
-	}
-	return "";
-}
-
-/** Append the new prompt to the Digest, truncated head and tail to `budget` tokens. */
-function withPrompt(state: string, request: ModelRouteRequest, budget: number): string {
-	const prompt = latestUserText(request);
-	return prompt ? `${state}\n\nNew prompt:\n${truncateHeadTail(prompt, budget)}` : state;
-}
 
 const MAX_CONSECUTIVE_FAILURES = 3;
 
@@ -46,7 +32,11 @@ function eventOf(request: ModelRouteRequest, compacting: boolean): EventName {
  * The Gate takes System-1's argmax (a tie goes to reasoning). Any System-1 failure is served by `defaultRole`.
  * Only `model` and `thinkingLevel` are returned, so the system prompt and tool list never depend on the role.
  */
-export function createRouter(getConfig: () => ConfigResult, buildDigest: (opts?: { toolOutput?: boolean }) => Digest, isCompacting: () => boolean = () => false): Router {
+export function createRouter(
+	getConfig: () => ConfigResult,
+	buildDigest: (request: ModelRouteRequest, opts?: { step?: boolean }) => Digest,
+	isCompacting: () => boolean = () => false,
+): Router {
 	let failures = 0;
 
 	const route = async (request: ModelRouteRequest, ctx: ExtensionContext): Promise<ModelRoute> => {
@@ -78,10 +68,14 @@ export function createRouter(getConfig: () => ConfigResult, buildDigest: (opts?:
 		if (target !== "system1") return pick(target);
 		if (failures >= MAX_CONSECUTIVE_FAILURES) return pick(config.defaultRole);
 
-		const sent = event === "prompt" ? withPrompt(buildDigest({ toolOutput: false }).state, request, config.digest.toolOutputTokens) : buildDigest().state;
+		// A new prompt carries the user's words instead of a step the previous turn already finished.
+		const digest =
+			event === "prompt"
+				? [buildDigest(request, { step: false }).state, renderNewPrompt(request.messages, config.digest.stepTokens)].filter(Boolean).join("\n\n")
+				: buildDigest(request).state;
 		const current = roleOfPrevious();
-		const span = startGateSpan({ event, system1Model: config.system1.model, sessionId: ctx.sessionManager.getSessionId(), previous: current, digestTokens: countTokens(sent), criteriaHash: config.criteriaHash, models: { reasoning: config.reasoningModel, execution: config.executionModel } });
-		const outcome = await decide(sent, { ...config.system1, criteria: config.criteria, signal: request.signal });
+		const span = startGateSpan({ event, system1Model: config.system1.model, sessionId: ctx.sessionManager.getSessionId(), previous: current, digestTokens: countTokens(digest), criteriaHash: config.criteriaHash, models: { reasoning: config.reasoningModel, execution: config.executionModel } });
+		const outcome = await decide(digest, { ...config.system1, criteria: config.criteria, signal: request.signal });
 		if (outcome.ok) {
 			failures = 0;
 			const { pReasoning, pExecution } = outcome.decision;

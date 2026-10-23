@@ -8,7 +8,7 @@ const exporter = new InMemorySpanExporter();
 function setup(recapTokens = 2000) {
 	let tool: any;
 	const pi = { on: () => {}, registerTool: (t: unknown) => void (tool = t), appendEntry: () => {} };
-	registerRecap(pi as never, () => ({ recapTokens, toolOutputTokens: 2000 }));
+	registerRecap(pi as never, () => ({ recapTokens, stepTokens: 1200 }));
 	const ctx = { sessionManager: { getBranch: () => [], getSessionId: () => "sess-42" } };
 	return (params: Record<string, string>) => tool.execute("id", params, undefined, undefined, ctx);
 }

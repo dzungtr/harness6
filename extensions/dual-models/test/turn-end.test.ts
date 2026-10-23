@@ -61,12 +61,12 @@ function router(extra: Record<string, unknown> = {}, compacting = false) {
 	const result = resolveConfig({
 		dualModels: { models: { reasoning: { model: "kimi/k3" }, execution: { model: "zai/glm-5.3-flash" } }, system1: { baseUrl, ...(system1 as object) }, ...rest },
 	});
-	const digestCalls: unknown[] = [];
+	const digestCalls: { request: ModelRouteRequest; opts: unknown }[] = [];
 	const r = createRouter(
 		() => result,
-		(opts) => {
-			digestCalls.push(opts);
-			return { state: "Intent: x\n\nLast tool output:\nTOOL-OUT", tokens: 1 };
+		(request, opts) => {
+			digestCalls.push({ request, opts });
+			return { state: "Intent: x\n\nPrevious step:\ncalls:\n1. bash {}\nresults:\n1. bash ok:\nTOOL-OUT", tokens: 1 };
 		},
 		() => compacting,
 	);
@@ -76,12 +76,12 @@ function router(extra: Record<string, unknown> = {}, compacting = false) {
 describe("turn-end Gate (argmax)", () => {
 	beforeEach(() => notify.mockClear());
 
-	it("calls the Gate on continuation with the full Digest including the last tool output", async () => {
+	it("calls the Gate on continuation with the full Digest including the previous step", async () => {
 		const r = router();
 		await r(request("continuation", EXEC), ctx);
 		expect(bodies).toHaveLength(1);
 		expect(bodies[0].state).toContain("TOOL-OUT");
-		expect(r.digestCalls[0]).toBeUndefined();
+		expect(r.digestCalls[0].opts).toBeUndefined();
 	});
 
 	it("follows argmax at P = 0.51 in both directions, from both previous roles", async () => {
@@ -111,10 +111,10 @@ describe("turn-end Gate (argmax)", () => {
 		expect((await router()(request("user", DELIB), ctx)).model).toBe(EXEC);
 	});
 
-	it("leaves the stale tool output out of the Digest for a new prompt", async () => {
+	it("leaves the stale previous step out of the Digest for a new prompt", async () => {
 		const r = router();
 		await r(request("user", EXEC), ctx);
-		expect(r.digestCalls[0]).toEqual({ toolOutput: false });
+		expect(r.digestCalls[0].opts).toEqual({ step: false });
 		expect(bodies[0].state).toContain("New prompt:");
 	});
 
