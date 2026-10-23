@@ -73,6 +73,10 @@ To prefer the Execution Model for small, well-specified edits, widen its criteri
 
 A project can set `criteria` alone, for example `{"dualModels": {"models": {"execution": {"criteria": "..."}}}}`, and keep the user's `model`.
 
+## Testing
+
+`npm test` spawns local System-1 and OTLP stubs on the fixed loopback ports `4399`–`4403` (one per test file, declared in `test/support/loopback.ts`), so a sandbox profile can allowlist exactly that range instead of all of loopback. `npm run test:e2e` uses port `4403` and runs files sequentially.
+
 ## Telemetry
 
 Each Gate call emits a `dual_models.gate` span. `gate.criteria_hash` is the first 12 hex characters of the sha256 of the effective criteria (reasoning, then execution), so runs with different criteria can be compared. The criteria text is never exported.

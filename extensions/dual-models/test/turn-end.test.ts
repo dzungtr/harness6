@@ -4,10 +4,11 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionContext, ModelRouteReason, ModelRouteRequest } from "@earendil-works/pi-coding-agent";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveConfig } from "../src/config.ts";
 import dualModels from "../src/index.ts";
 import { createRouter } from "../src/route.ts";
+import { listenLoopback, LOOPBACK_PORTS } from "./support/loopback.ts";
 
 const physical = (provider: string, id: string) => ({ provider, id, api: "openai-completions" }) as never;
 const DELIB = physical("kimi", "k3");
@@ -18,9 +19,9 @@ let baseUrl: string;
 let bodies: any[];
 let probs: [number, number];
 
-beforeEach(async () => {
-	bodies = [];
-	probs = [0.5, 0.5];
+// One server per file: the port is fixed so a sandbox profile can allowlist it, and a fresh
+// server per test would leave the client's pooled keep-alive socket pointing at a closed one.
+beforeAll(async () => {
 	server = createServer((req: IncomingMessage, res: ServerResponse) => {
 		let data = "";
 		req.on("data", (c) => (data += c));
@@ -30,11 +31,15 @@ beforeEach(async () => {
 			res.end(JSON.stringify({ answers: { role: { type: "choice", probabilities: { reasoning: probs[0], execution: probs[1] } } } }));
 		});
 	});
-	await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+	await listenLoopback(server, LOOPBACK_PORTS.turnEnd);
 	baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v1/systemone`;
+});
+beforeEach(() => {
+	bodies = [];
+	probs = [0.5, 0.5];
 	vi.stubEnv("OPENROUTER_API_KEY", "sk-test");
 });
-afterEach(async () => {
+afterAll(async () => {
 	vi.unstubAllEnvs();
 	server.closeAllConnections();
 	await new Promise((r) => server.close(r));

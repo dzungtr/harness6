@@ -10,6 +10,7 @@ import type { AddressInfo } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { listenLoopback, LOOPBACK_PORTS } from "../support/loopback.ts";
 
 const EXECUTION = "tailnet/@preset/glm-flash";
 const REASONING = "tailnet/@preset/glm-max";
@@ -32,7 +33,7 @@ beforeAll(async () => {
 			res.end(JSON.stringify(gateAnswer(d, e)));
 		});
 	});
-	await new Promise<void>((r) => stub.listen(0, "127.0.0.1", r));
+	await listenLoopback(stub, LOOPBACK_PORTS.rpcE2e);
 	const baseUrl = `http://127.0.0.1:${(stub.address() as AddressInfo).port}/api/v1/systemone`;
 
 	const realDir = process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");

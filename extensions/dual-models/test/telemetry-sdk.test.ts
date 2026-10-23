@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { trace } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
 import { flushTelemetry, startGateSpan } from "../src/telemetry.ts";
+import { listenLoopback, LOOPBACK_PORTS } from "./support/loopback.ts";
 
 const ok = { ok: true, decision: { pReasoning: 0.1, pExecution: 0.9 } } as const;
 const gate = () => startGateSpan({ event: "prompt", system1Model: "m", sessionId: "s1", previous: undefined, digest: "Intent: x", digestTokens: 1, criteriaHash: "abc123abc123", models: { reasoning: "a/r", execution: "a/e" } }).end(ok, "execution");
@@ -19,7 +20,7 @@ describe("dual_models.gate span without a registered provider", () => {
 				res.end("{}");
 			});
 		});
-		await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+		await listenLoopback(server, LOOPBACK_PORTS.telemetrySdk);
 		vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", `http://127.0.0.1:${(server.address() as AddressInfo).port}`);
 		vi.stubEnv("OTEL_SERVICE_NAME", "");
 		try {

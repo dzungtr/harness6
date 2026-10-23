@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { resolveConfig } from "../src/config.ts";
 import { DEFAULT_CRITERIA } from "../src/system1.ts";
 import { createRouter } from "../src/route.ts";
+import { listenLoopback, LOOPBACK_PORTS } from "./support/loopback.ts";
 
 const exporter = new InMemorySpanExporter();
 const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] });
@@ -27,7 +28,7 @@ let baseUrl: string;
 beforeAll(async () => {
 	expect(trace.setGlobalTracerProvider(provider)).toBe(true);
 	server = createServer((_req, res) => respond(res));
-	await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+	await listenLoopback(server, LOOPBACK_PORTS.telemetry);
 	baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
 });
 afterAll(async () => {
@@ -80,7 +81,7 @@ describe("dual_models.gate span", () => {
 			switched: false,
 			fallback: false,
 			"digest.tokens": 7,
-			"gate.digest": "Intent: x",
+			"gate.digest": "Intent: x\n\nNew prompt:\ndo it",
 			"session.id": "sess-42",
 			"gen_ai.conversation.id": "sess-42",
 			"gate.criteria_hash": expect.stringMatching(/^[0-9a-f]{12}$/),
