@@ -19,7 +19,7 @@ describe("resolveConfig", () => {
 				baseUrl: "https://openrouter.ai/api/v1/systemone",
 				timeoutMs: 1500,
 			},
-			digest: { recapTokens: 2000, toolOutputTokens: 2000 },
+			digest: { recapTokens: 2000, stepTokens: 1200 },
 			events: {
 				prompt: "system1",
 				turn_end: "system1",
@@ -90,6 +90,13 @@ describe("resolveConfig", () => {
 		]) {
 			expect(text).toContain(path);
 		}
+	});
+
+	it("hints the replacement for the removed digest.toolOutputTokens", () => {
+		const result = resolveConfig({ dualModels: { ...models, digest: { toolOutputTokens: 100 } } });
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.errors).toEqual(["dualModels.digest.toolOutputTokens: removed; the Gate now reads the Previous step block, so use digest.stepTokens"]);
 	});
 
 	it("hints the new key for forceDeliberationOnPrompt", () => {

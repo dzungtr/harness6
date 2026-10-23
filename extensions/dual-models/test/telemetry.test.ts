@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { resolveConfig } from "../src/config.ts";
 import { DEFAULT_CRITERIA } from "../src/system1.ts";
 import { createRouter } from "../src/route.ts";
+import { listenLoopback, LOOPBACK_PORTS } from "./support/loopback.ts";
 
 const exporter = new InMemorySpanExporter();
 const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] });
@@ -27,7 +28,7 @@ let baseUrl: string;
 beforeAll(async () => {
 	expect(trace.setGlobalTracerProvider(provider)).toBe(true);
 	server = createServer((_req, res) => respond(res));
-	await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+	await listenLoopback(server, LOOPBACK_PORTS.telemetry);
 	baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
 });
 afterAll(async () => {
@@ -80,6 +81,7 @@ describe("dual_models.gate span", () => {
 			switched: false,
 			fallback: false,
 			"digest.tokens": 7,
+			"gate.digest": "Intent: x\n\nNew prompt:\ndo it",
 			"session.id": "sess-42",
 			"gen_ai.conversation.id": "sess-42",
 			"gate.criteria_hash": expect.stringMatching(/^[0-9a-f]{12}$/),
@@ -138,6 +140,17 @@ describe("dual_models.gate span", () => {
 		expect(s.attributes["model.applied"]).toBe("kimi/k3");
 		expect(s.attributes["p.reasoning"]).toBeUndefined();
 		expect(s.status.code).toBe(SpanStatusCode.ERROR);
+	});
+
+	it("exports the exact digest text, bounded with a truncation marker", async () => {
+		const { boundedDigest } = await import("../src/telemetry.ts");
+		const { DIGEST_ATTRIBUTE_LIMIT } = await import("../src/telemetry.ts");
+		expect(boundedDigest("short")).toBe("short");
+		const big = "A".repeat(DIGEST_ATTRIBUTE_LIMIT + 5000);
+		const cut = boundedDigest(big);
+		expect(cut).toContain("truncated");
+		expect(cut.length).toBeLessThan(big.length);
+		expect(cut.startsWith("A".repeat(100))).toBe(true);
 	});
 
 	it("emits no span when the Gate is not consulted", async () => {

@@ -1,12 +1,14 @@
-import { type ExtensionAPI, estimateTokens } from "@earendil-works/pi-coding-agent";
+import { type ExtensionAPI, type ModelRouteRequest } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { readPreviousStep, renderPreviousStep } from "./step.ts";
 import { recordRecapSpan } from "./telemetry.ts";
+import { countTokens, truncateHeadTail } from "./text.ts";
 
 export const RECAP_ENTRY = "dual-models.recap";
 
 export interface DigestBudgets {
 	recapTokens: number;
-	toolOutputTokens: number;
+	stepTokens: number;
 }
 
 export interface Digest {
@@ -22,22 +24,12 @@ interface RecapState {
 
 const EMPTY: RecapState = { intent: "", courseOfAction: "", events: [] };
 
-export const countTokens = (text: string) => estimateTokens({ role: "user", content: text, timestamp: 0 } as never);
+export { countTokens, truncateHeadTail } from "./text.ts";
 
 function renderRecap(s: RecapState): string {
 	const lines = [`Intent: ${s.intent || "(not set)"}`, `Course of action: ${s.courseOfAction || "(not set)"}`];
 	if (s.events.length > 0) lines.push("Events:", ...s.events.map((e) => `- ${e}`));
 	return lines.join("\n");
-}
-
-/** Keep the head and tail of `text` so the result stays within `budget` tokens. */
-export function truncateHeadTail(text: string, budget: number): string {
-	if (countTokens(text) <= budget) return text;
-	const marker = "\n[... truncated ...]\n";
-	const keep = Math.max(0, budget * 4 - marker.length - 4);
-	const head = Math.ceil(keep / 2);
-	const tail = Math.floor(keep / 2);
-	return text.slice(0, head) + marker + (tail > 0 ? text.slice(-tail) : "");
 }
 
 function parseState(data: unknown): RecapState | undefined {
@@ -63,16 +55,14 @@ const PROMPT_GUIDELINES = [
 ];
 
 /**
- * Register the `recap` tool (identical for both roles) and track the last tool output.
+ * Register the `recap` tool (identical for both roles) and build the Digest from it.
  * The Recap is persisted on the session branch and restored on session start and tree navigation.
  */
 export function registerRecap(pi: ExtensionAPI, getBudgets: () => DigestBudgets) {
 	let state: RecapState = EMPTY;
-	let lastToolOutput = "";
 
 	const restore = (_event: unknown, ctx: { sessionManager: { getBranch(): any[] } }) => {
 		state = EMPTY;
-		lastToolOutput = "";
 		for (const entry of ctx.sessionManager.getBranch()) {
 			if (entry.type !== "custom" || entry.customType !== RECAP_ENTRY) continue;
 			state = parseState(entry.data) ?? state;
@@ -80,14 +70,6 @@ export function registerRecap(pi: ExtensionAPI, getBudgets: () => DigestBudgets)
 	};
 	pi.on("session_start", restore);
 	pi.on("session_tree", restore);
-
-	pi.on("tool_result", (event) => {
-		if ((event as { toolName: string }).toolName === "recap") return;
-		lastToolOutput = event.content
-			.map((c) => (c.type === "text" ? c.text : ""))
-			.filter(Boolean)
-			.join("\n");
-	});
 
 	pi.registerTool({
 		name: "recap",
@@ -129,14 +111,21 @@ export function registerRecap(pi: ExtensionAPI, getBudgets: () => DigestBudgets)
 	});
 
 	return {
-		/** The input System-1 judges from: the Recap plus the last tool output. It never names the current role. */
-		buildDigest(opts: { toolOutput?: boolean } = {}): Digest {
+		/**
+		 * The input System-1 judges from: the Recap and, unless it is left out, the `Previous step:`
+		 * block. It never names the current role.
+		 */
+		buildDigest(request: ModelRouteRequest, opts: { step?: boolean } = {}): Digest {
 			const budgets = getBudgets();
 			// The budget is enforced on write, so re-check it here in case it was lowered since.
 			const fit: RecapState = { ...state, events: [...state.events] };
 			while (countTokens(renderRecap(fit)) > budgets.recapTokens && fit.events.length > 0) fit.events.shift();
 			let text = truncateHeadTail(renderRecap(fit), budgets.recapTokens);
-			if (opts.toolOutput !== false && lastToolOutput) text += `\n\nLast tool output:\n${truncateHeadTail(lastToolOutput, budgets.toolOutputTokens)}`;
+			if (opts.step !== false) {
+				const step = readPreviousStep(request.messages);
+				const block = step ? renderPreviousStep(step, budgets.stepTokens) : "";
+				if (block) text += `\n\n${block}`;
+			}
 			return { state: text, tokens: countTokens(text) };
 		},
 	};

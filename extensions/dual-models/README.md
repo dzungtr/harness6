@@ -16,7 +16,7 @@ Settings live under the `dualModels` key of `~/.pi/agent/settings.json` (user) a
       "execution": { "model": "provider/modelId", "criteria": "optional text" }
     },
     "system1": { "model": "typesafe/jev-1.13", "baseUrl": "https://openrouter.ai/api/v1/systemone", "timeoutMs": 1500 },
-    "digest": { "recapTokens": 2000, "toolOutputTokens": 2000 },
+    "digest": { "recapTokens": 2000, "stepTokens": 1200 },
     "events": { "prompt": "system1", "turn_end": "system1", "retry": "previous", "compaction": "execution", "side-call": "execution" },
     "defaultRole": "reasoning",
     "forceReasoningOnPrompt": false
@@ -32,7 +32,7 @@ Settings live under the `dualModels` key of `~/.pi/agent/settings.json` (user) a
 | `system1.model` | `typesafe/jev-1.13` | System-1 model |
 | `system1.baseUrl` | OpenRouter System-1 endpoint | User settings only. https, or http for localhost |
 | `system1.timeoutMs` | `1500` | Positive number |
-| `digest.recapTokens`, `digest.toolOutputTokens` | `2000` | Positive integers |
+| `digest.recapTokens`, `digest.stepTokens` | `2000`, `1200` | Positive integers |
 | `events.<event>` | see above | One of `system1`, `reasoning`, `execution`, `previous` |
 | `defaultRole` | `reasoning` | Serves the request when System-1 fails |
 | `forceReasoningOnPrompt` | `false` | Skip the Gate on a new prompt |
@@ -46,6 +46,7 @@ Unknown keys, including under `models` and `models.<role>`, are reported.
 | `deliberationModel` | `models.reasoning.model` |
 | `executionModel` | `models.execution.model` |
 | `system1.thetaSwitch` | removed; tune with `models.<role>.criteria` |
+| `digest.toolOutputTokens` | `digest.stepTokens`; the Gate now reads the `Previous step:` block |
 
 ## Tuning with criteria
 
@@ -72,10 +73,16 @@ To prefer the Execution Model for small, well-specified edits, widen its criteri
 
 A project can set `criteria` alone, for example `{"dualModels": {"models": {"execution": {"criteria": "..."}}}}`, and keep the user's `model`.
 
+## Testing
+
+`npm test` spawns local System-1 and OTLP stubs on the fixed loopback ports `4399`–`4403` (one per test file, declared in `test/support/loopback.ts`), so a sandbox profile can allowlist exactly that range instead of all of loopback. `npm run test:e2e` uses port `4403` and runs files sequentially.
+
 ## Telemetry
 
 Each Gate call emits a `dual_models.gate` span. `gate.criteria_hash` is the first 12 hex characters of the sha256 of the effective criteria (reasoning, then execution), so runs with different criteria can be compared. The criteria text is never exported.
 
 `model.applied` is the configured `provider/modelId` of the role the Gate chose (`models.<role>.model`), and `model.previous` is the same for the role in use before the call (`none` on the first call). Use them to map `role.chosen` to a concrete model, since the `chat` spans only carry `gen_ai.request.model="auto"`.
+
+`gate.digest` is the exact text sent to System-1: the Recap plus `New prompt:` or the `Previous step:` block, while `digest.tokens` is its size. It is set when the span starts, so a fallback span carries the input that produced the fallback too. Attributes are not free, so a Digest over 16 KiB is cut with a `truncated` marker. It carries the Recap, the prompt text, the assistant text and the tool results, so avoid putting secrets in any of them.
 
 Each `recap` tool call emits a `dual_models.recap` span, so a session's Recap history can be reviewed in the trace. On a stored write it carries `recap.intent`, `recap.course_of_action`, `recap.event` (only when the write appended one), `recap.events.count`, `recap.tokens` and `recap.budget`. A rejected write (over budget or empty) has `recap.rejected=true` and an error status, and no Recap text. Unlike the criteria text, the Recap text is exported, so avoid putting secrets in it.

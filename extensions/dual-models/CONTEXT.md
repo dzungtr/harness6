@@ -58,6 +58,14 @@ significant events, written through a tool during turns.
 _Avoid_: plan, summary, notes
 
 **Digest**:
-The bounded input System-1 judges from: the current Recap plus the last
-tool output, and on a new prompt the user's prompt (as `New prompt:`).
+The bounded input System-1 judges from: the current Recap plus the
+`Previous step:` block at a turn end, or the user's prompt (as
+`New prompt:`) on a new prompt. Each part has its own token budget.
 _Avoid_: context, transcript
+
+**Previous step**:
+The one completed step a turn-end Gate judges from: the assistant text
+that made the calls (its stated sub-goal), the exact tool calls with their
+arguments, and what each call returned. The tool result is evidence;
+the assistant text is only a claim. Never contains the current role.
+_Avoid_: last tool output, turn transcript, next step

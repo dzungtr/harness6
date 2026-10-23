@@ -33,11 +33,20 @@ export async function flushTelemetry(): Promise<void> {
 	await ownProvider?.forceFlush();
 }
 
+/** Characters of the Digest kept in the `gate.digest` attribute; a longer Digest is cut with a marker. */
+export const DIGEST_ATTRIBUTE_LIMIT = 16_384;
+
+export function boundedDigest(digest: string): string {
+	return digest.length <= DIGEST_ATTRIBUTE_LIMIT ? digest : `${digest.slice(0, DIGEST_ATTRIBUTE_LIMIT)}\n[... truncated at ${DIGEST_ATTRIBUTE_LIMIT} chars ...]`;
+}
+
 export interface GateSpanStart {
 	event: string;
 	system1Model: string;
 	sessionId: string;
 	previous: Role | undefined;
+	/** The exact text sent to System-1. Exported verbatim on the span, bounded by `DIGEST_ATTRIBUTE_LIMIT`. */
+	digest: string;
 	digestTokens: number;
 	criteriaHash: string;
 	/** Configured `provider/modelId` per role, from `models.<role>.model`. */
@@ -58,6 +67,7 @@ export function startGateSpan(start: GateSpanStart): GateSpan {
 			"role.previous": start.previous ?? "none",
 			"model.previous": start.previous ? start.models[start.previous] : "none",
 			"digest.tokens": start.digestTokens,
+			"gate.digest": boundedDigest(start.digest),
 			"gate.criteria_hash": start.criteriaHash,
 			"session.id": start.sessionId,
 			"gen_ai.conversation.id": start.sessionId,
