@@ -79,4 +79,6 @@ Each Gate call emits a `dual_models.gate` span. `gate.criteria_hash` is the firs
 
 `model.applied` is the configured `provider/modelId` of the role the Gate chose (`models.<role>.model`), and `model.previous` is the same for the role in use before the call (`none` on the first call). Use them to map `role.chosen` to a concrete model, since the `chat` spans only carry `gen_ai.request.model="auto"`.
 
+`gate.digest` is the exact text sent to System-1: the Recap plus `New prompt:` or the `Previous step:` block, while `digest.tokens` is its size. It is set when the span starts, so a fallback span carries the input that produced the fallback too. Attributes are not free, so a Digest over 16 KiB is cut with a `truncated` marker. It carries the Recap, the prompt text, the assistant text and the tool results, so avoid putting secrets in any of them.
+
 Each `recap` tool call emits a `dual_models.recap` span, so a session's Recap history can be reviewed in the trace. On a stored write it carries `recap.intent`, `recap.course_of_action`, `recap.event` (only when the write appended one), `recap.events.count`, `recap.tokens` and `recap.budget`. A rejected write (over budget or empty) has `recap.rejected=true` and an error status, and no Recap text. Unlike the criteria text, the Recap text is exported, so avoid putting secrets in it.

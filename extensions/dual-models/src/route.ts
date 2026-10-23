@@ -74,7 +74,7 @@ export function createRouter(
 				? [buildDigest(request, { step: false }).state, renderNewPrompt(request.messages, config.digest.stepTokens)].filter(Boolean).join("\n\n")
 				: buildDigest(request).state;
 		const current = roleOfPrevious();
-		const span = startGateSpan({ event, system1Model: config.system1.model, sessionId: ctx.sessionManager.getSessionId(), previous: current, digestTokens: countTokens(digest), criteriaHash: config.criteriaHash, models: { reasoning: config.reasoningModel, execution: config.executionModel } });
+		const span = startGateSpan({ event, system1Model: config.system1.model, sessionId: ctx.sessionManager.getSessionId(), previous: current, digest, digestTokens: countTokens(digest), criteriaHash: config.criteriaHash, models: { reasoning: config.reasoningModel, execution: config.executionModel } });
 		const outcome = await decide(digest, { ...config.system1, criteria: config.criteria, signal: request.signal });
 		if (outcome.ok) {
 			failures = 0;
