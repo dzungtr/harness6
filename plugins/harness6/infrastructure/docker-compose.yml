@@ -341,7 +341,7 @@ services:
     image: ghcr.io/dzungtr/aurora:${AURORA_TAG:-0.6.0}
     container_name: aurora
     restart: unless-stopped
-    command: ["/workspace", "--port", "7634"]
+    command: ["--port", "7634"]
     volumes:
       # Scratch workspace the CLI expects as its positional argument.
       - aurora_workspace:/workspace
