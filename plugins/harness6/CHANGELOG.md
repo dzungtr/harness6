@@ -2,17 +2,17 @@
 
 ## [Unreleased]
 
-The hosted Mem0 platform replaces Graphiti as the backend the agentic-memory skills point at, and supplies the temporal memory (stale facts are superseded automatically). The Graphiti services, `infrastructure/config.yaml` and the Kubernetes manifests are unchanged.
+The hosted Mem0 platform, driven through the `mem0` CLI, replaces Graphiti as the backend the agentic-memory skills point at, and supplies the temporal memory (stale facts are superseded automatically and `--latest-only` reads skip them). The Graphiti services, `infrastructure/config.yaml` and the Kubernetes manifests are unchanged.
 
 ### Added
 
-- **`init` section 6c** — registers the hosted Mem0 platform MCP server (`claude mcp add --transport http mem0-mcp https://mcp.mem0.ai/mcp`) and asks the user to authenticate through `/mcp`. Nothing is deployed locally, so it applies to the Compose and Kubernetes paths alike.
-- **ADR 0009** — records the substrate switch from Graphiti to the Mem0 platform, the live temporal-behaviour probes behind it, and supersedes the substrate decision in ADR 0003.
+- **`init` section 6c** — installs or upgrades the `mem0` CLI (needs a build with `--latest-only`, v0.2.14 or newer) and asks the user to authenticate it with their own API key via `mem0 init`. No MCP server is registered, nothing is deployed locally, so it applies to the Compose and Kubernetes paths alike.
+- **ADR 0009** — records the substrate switch from Graphiti to the Mem0 platform through its CLI, the live probes behind it, and supersedes the substrate decision in ADR 0003.
 
 ### Changed
 
-- **`agentic-memory-read` / `agentic-memory-write` rewritten for the Mem0 platform** — tools are `add_memory`, `search_memories`, `get_memories`, `get_memory`, `update_memory`, `delete_memory` and `get_event_status`. Scope keys (`owner_repo`, `owner_repo_<issue>`, `owner_repo_adr_<NNNN>`) become the memory's `run_id` plus `metadata.scope`, filtered server-side, instead of a Graphiti `group_id`. Writes are asynchronous (`event_id`, then `get_event_status`). Reads check `lifecycle_state` with `get_memory` because search still returns superseded memories. ADR-scope notes are written with `infer=false` and read regardless of state.
-- **`signoz-*-queries` skills** — cached-schema reads and writes use `search_memories` / `add_memory` with `run_id="global"` instead of the Graphiti tool names.
+- **`agentic-memory-read` / `agentic-memory-write` rewritten for the `mem0` CLI** — commands are `mem0 --agent add | search | list | update | delete | event status`. Scope keys (`owner_repo`, `owner_repo_<issue>`, `owner_repo_adr_<NNNN>`) become the memory's `--run-id` plus `scope` metadata, filtered server-side, instead of a Graphiti `group_id`. Reads pass `--latest-only` to skip superseded notes; ADR-scope notes are added with `--no-infer` and read without it. Writes are asynchronous (`event_id`, then `event status`).
+- **`signoz-*-queries` skills** — cached-schema reads and writes use `mem0 --agent search` / `add` with `--run-id global` instead of the Graphiti tool names.
 - **Docs** — the reference instructions (`hooks/references/harness6.md`) describe the hosted Mem0 platform and that written memories leave the machine. `init` notes that the Kubernetes path still deploys Graphiti.
 
 ## [0.4.0] - 2026-09-22

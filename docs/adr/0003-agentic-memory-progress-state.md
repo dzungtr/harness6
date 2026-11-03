@@ -42,15 +42,15 @@ Concretely:
    upstream built-in entity types (Preference, Requirement, Procedure, Location, Event,
    Organization, Document, Topic, Person, Object). Retire the "G1/G2/G3 decision-drift" framing
    from the original spec.
-2. **Substrate: the hosted Mem0 platform (ADR 0009).** Reads are filtered server-side by scope
-   (`run_id`) and sorted by recency; each kept hit is checked for `lifecycle_state == "active"`
+2. **Substrate: the hosted Mem0 platform through its CLI (ADR 0009).** Reads are filtered server-side by scope
+   (`--run-id`) and sorted by recency, using the `mem0` CLI's `--latest-only` to drop superseded notes
    (see `skills/agentic-memory-read/SKILL.md`). Resolved blockers/drift are aged out by the
    platform's temporal supersession, triggered by "Resolution as event" notes (see
    `skills/agentic-memory-write/SKILL.md`).
 3. **Scope-key model.** Memory is scoped to the GitHub work hierarchy, project-namespaced (the
    memory infra is shared across projects): `owner/repo` (project) · `owner/repo#<parent>` (epic)
    · `owner/repo#<sub-issue>` (ticket) — resolved deterministically from the git remote plus
-   branch/PR/task-brief, used as each memory's `run_id`. Readable form now; rename
+   branch/PR/task-brief, used as each memory's `--run-id`. Readable form now; rename
    fragility is an accepted trade-off. Not revisited in this ADR: rename-proof node-ID scope keys. A fourth key, `owner/repo#adr-<NNNN>`
    (ADR scope), sits **outside** this GitHub work hierarchy — it's keyed to an ADR file, not an
    issue, and fires on ADR amendment rather than ticket progress (see
@@ -102,4 +102,4 @@ fallback `git log -p` on this file._
 | Date | PR | Change |
 |---|---|---|
 | 2026-08-24 | #31 | Add ADR scope as a fourth memory scope key (§3), outside the GitHub work hierarchy; exempt it from GitHub-status reconciliation and aging-out (§6). |
-| 2026-11-03 | #93 | Substrate moved from Graphiti to the hosted Mem0 platform (§2, ADR 0009); scope key is the memory's `run_id`, not a `group_id` (§3); staleness uses Mem0's temporal supersession instead of Graphiti's bi-temporal extraction (§6). |
+| 2026-11-03 | #93 | Substrate moved from Graphiti to the hosted Mem0 platform, used through its CLI (§2, ADR 0009); scope key is the memory's `--run-id`, not a `group_id` (§3); staleness uses Mem0's temporal supersession instead of Graphiti's bi-temporal extraction (§6). |

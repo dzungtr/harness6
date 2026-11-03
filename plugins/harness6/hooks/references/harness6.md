@@ -57,7 +57,7 @@ Cite the source inline with the claim so the human can check it.
 
 ## Pillar 1 — Memory
 
-Harness6 provides two complementary forms of memory. RAG memory uses `memsearch` to index `docs/` into the Milvus vector database for decision and constraint searches, including glossary lookups, fact checks, and how-to questions. Temporal memory uses the hosted Mem0 platform through the `mem0-mcp` MCP server and the `agentic-memory-read` and `agentic-memory-write` skills to preserve ambient progress-state between sessions; Mem0 marks a fact `superseded` when a newer one contradicts it.
+Harness6 provides two complementary forms of memory. RAG memory uses `memsearch` to index `docs/` into the Milvus vector database for decision and constraint searches, including glossary lookups, fact checks, and how-to questions. Temporal memory uses the hosted Mem0 platform through the `mem0` CLI and the `agentic-memory-read` and `agentic-memory-write` skills to preserve ambient progress-state between sessions; Mem0 marks a fact `superseded` when a newer one contradicts it, and `--latest-only` reads skip superseded facts.
 
 ### Memsearch auto-context
 
@@ -94,9 +94,9 @@ The temptation to list files first and infer coverage from names is a known fail
 
 ### Temporal memory
 
-Temporal memory is ambient progress-state, not a decision store: a self-service, non-authoritative catch-net so a later cold start can pick up smoothly. It runs on the hosted Mem0 platform (`https://mcp.mem0.ai/mcp`, registered by `init` as `mem0-mcp`, OAuth); nothing is deployed locally and everything written is stored on Mem0's service. The substrate decision is `docs/adr/0009-mem0-agentic-memory-substrate.md`. The Graphiti services in `plugins/harness6/infrastructure/docker-compose.yml` are no longer what the skills point at.
+Temporal memory is ambient progress-state, not a decision store: a self-service, non-authoritative catch-net so a later cold start can pick up smoothly. It runs on the hosted Mem0 platform, driven by the `mem0` CLI (installed and authenticated through `init`, using the user's own API key); nothing is deployed locally and everything written is stored on Mem0's service. The substrate decision is `docs/adr/0009-mem0-agentic-memory-substrate.md`. The Graphiti services in `plugins/harness6/infrastructure/docker-compose.yml` are no longer what the skills point at.
 
-- **Cold-start / picking up work:** before touching code, use the `agentic-memory-read` skill for the resolved scope derived from the git remote plus branch, PR, or task brief. Re-query when descending from an epic into a child ticket mid-session. Scope is the memory's `run_id`; search still returns `superseded` memories, so the read skill checks `lifecycle_state` with `get_memory` and keeps only active ones.
+- **Cold-start / picking up work:** before touching code, use the `agentic-memory-read` skill for the resolved scope derived from the git remote plus branch, PR, or task brief. Re-query when descending from an epic into a child ticket mid-session. Scope is the memory's `--run-id`; the read skill passes `--latest-only` so superseded memories are not returned (ADR scope reads everything).
 - **During work:** use the `agentic-memory-write` skill event-driven — on a blocker, discovered drift, stopping point, silent descope, or resolution of a previously noted blocker or drift. Write standup prose for the next developer: where the work stands, what the catch is, and where to pick up. Do not continuously log every step.
 - **Three homes:** ADR (architectural _why_) / GitHub Issues (_what_, system of record) / Memory (tacit catch-net, non-authoritative). Memory never substitutes for ticket or ADR hygiene: update the ticket when its state changes, and record real architectural decisions in ADRs.
 - Never write secrets to memory.
