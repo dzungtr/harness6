@@ -4,21 +4,23 @@ description: >
   Use whenever you hit a blocker, discover drift between ticket intent and delivered result,
   reach a stopping point (session end, context-limit handoff, done-pending-verification),
   silently descope something, or resolve a previously-noted blocker/drift, to persist that
-  ambient progress-state for the next cold start. Backed by a remote Graphiti temporal
-  knowledge graph via the `memory` MCP server. Event-driven — not continuous per-step logging,
+  ambient progress-state for the next cold start. Backed by a self-hosted Mem0 store (OpenMemory
+  MCP server) via the `memory` MCP server. Event-driven — not continuous per-step logging,
   not session-end-only.
 ---
 
-# agentic-memory-write (Graphiti)
+# agentic-memory-write (Mem0 / OpenMemory MCP)
 
 Persists **ambient progress-state** — a standup note to the next developer — so a later cold
 start (yours or someone else's) can pick up smoothly. This is not a decision log: no
-`Decision`/`Outcome` typed shape, no schema file. Backed by the same self-hosted Graphiti +
-FalkorDB stack as `agentic-memory-read`, exposed as the `memory` MCP server.
+`Decision`/`Outcome` typed shape, no schema file. Backed by the same self-hosted Mem0 stack as
+`agentic-memory-read` (`infrastructure/mem0/docker-compose.yml`), exposed as the `memory` MCP
+server. Decision record: `docs/adr/0009-mem0-agentic-memory-substrate.md`.
 
-Tool names and signatures below are **verified against the live upstream source**
-(`getzep/graphiti`, `mcp_server/src/graphiti_mcp_server.py`, main branch, checked
-2026-07-10) — keep them accurate, don't invent params.
+The `memory` tools take **text only** — `add_memories(text)` has no metadata or id parameter
+(read from a running server's `tools/list`; see `agentic-memory-read` for the full table). Scope,
+kind and status therefore travel in a header line inside the text, and `agentic-memory-read`
+filters on it client-side.
 
 ## When to write (event-driven, not continuous)
 
@@ -86,66 +88,95 @@ Write to your **most-specific** scope:
   **outside** the GitHub work hierarchy the other three keys are built on — see "ADR scope"
   below.
 
-`group_id` must be underscore-joined, not slash/hash-joined and not dash-joined either.
-Normalize **every component** before joining: replace any `-`, `.`, `#`, or whitespace inside
-the owner/repo names with `_`, then lowercase — e.g. `acme-org/payments-service` →
-`acme_org_payments_service`. The final `group_id` must contain no character other than
-`[a-z0-9_]` plus `<issue>`/`<NNNN>` digits. This matches the project rule "repo `my-repo`
-→ `my_repo`" and `agentic-memory-read`'s "Scope resolution" — keep them identical.
-Slash/hash-joining makes FalkorDB's RediSearch full-text index throw `RediSearch: Syntax
-error at offset 17` on group_ids containing `/` or `#` (confirmed 2026-07-14). A
-first fix moved to dash-joining, but that same day, live testing found dash-joined group_ids
-trip the same class of RediSearch error and hang the write indefinitely instead of failing
-cleanly — reproduced on `tillpos-tony-my-claude`, which never completed (`count(n)` stuck at 0
-for 5+ minutes). Underscore-joined (`tillpos_tony_my_claude_test`) completed cleanly with zero
-RediSearch errors, so underscore is the verified-safe separator, not just another guess. See
-`agentic-memory-read`'s "Scope resolution" section for the full verification detail; keep the
-two skills' conventions identical.
+The scope key is underscore-joined, not slash/hash-joined and not dash-joined. Normalize
+**every component** before joining: replace any `-`, `.`, `#`, or whitespace inside the
+owner/repo names with `_`, then lowercase — e.g. `acme-org/payments-service` →
+`acme_org_payments_service`. The final key must contain no character other than `[a-z0-9_]`
+plus `<issue>`/`<NNNN>` digits. This matches the project rule "repo `my-repo` → `my_repo`" and
+`agentic-memory-read`'s "Scope resolution" — keep them identical. It is used as the **scope
+token** in the header below.
 
 Don't write epic-level notes for single-ticket concerns — that breaks read-wide/write-narrow
 and pollutes every sibling ticket's epic-level read.
 
 ## Resolution as event
 
-When a blocker clears or drifted work gets finished, write a new episode that **names what it
-resolves**, e.g.:
+When a blocker clears or drifted work gets finished, write a new memory that **names what it
+resolves**, with `kind: resolution` and a `resolves:` clause, e.g.:
 
-> Blocker on #78 noted 2026-07-09 is cleared: staging was misconfigured (wrong env var),
-> infra fixed it. Verified against staging now, all green.
+```
+[scope: owner_repo_78] [kind: resolution] [status: resolved] [at: 2026-07-12T09:00:00Z]
+Resolves the 2026-07-09 blocker on #78 (staging API returning 500s): staging was misconfigured
+(wrong env var), infra fixed it. Verified against staging now, all green.
+```
 
-Naming the prior state explicitly gives Graphiti's bi-temporal extraction what it needs to
-recognize the contradiction and age out (invalidate, not delete) the stale note — don't rely
-on a terse "fixed" with no reference to what it fixes.
+Mem0 has no temporal invalidation: nothing marks the old blocker as no longer true, and
+retrieval ranks by semantic similarity, so the stale blocker can outrank its resolution. The
+`resolves:` text is what lets `agentic-memory-read` discard the older note. Never write a terse
+"fixed" with no reference to what it fixes.
+
+Mem0's add step also lets the extractor LLM compare the new fact with similar existing ones and
+choose `ADD`, `UPDATE`, `DELETE` or `NONE` (the `event` in the response). That sometimes merges
+or removes the stale note for you, but it is a model judgement, not a guarantee — do not rely on
+it, and do not assume a note was removed.
+
+## Supersession discipline (reversing an earlier note)
+
+The MCP tools cannot edit or delete a single memory, so you cannot mark an old note
+`superseded` in place. Instead:
+
+1. Search for the note you are reversing first (`search_memory`), so you can quote it.
+2. Write the replacement with `kind` set to the new state, `status: current`, and a
+   `supersedes:` clause that quotes the key words of the old note.
+3. Check the `add_memories` response `event`. `UPDATE`/`DELETE` entries mean Mem0 already
+   merged or removed the old note; `ADD` alone means both notes now exist and the reader will
+   rely on your `supersedes:` text.
+4. **Never** use `delete_all_memories` to retire one note: it wipes every memory the user's app
+   can access, across all projects. If a single memory must be physically removed or edited,
+   use OpenMemory's REST API (per-memory update/delete routes under `/api/v1/memories/`, listed
+   at `http://localhost:8765/docs`) or ask the human.
 
 ## ADR scope
 
-Episode naming follows the same convention as any other write, e.g. `"Amendment: ADR-0003
-group_id normalization fix"`. The episode body is still standup-prose — where it stood,
-what changed it, why the new decision is correct — never a typed `Decision`/`Outcome`/
-`SUPERSEDES` shape.
+Memory naming follows the same convention as any other write, e.g. a header of
+`[scope: owner_repo_adr_0003] [kind: adr-amendment]` and a first line "Amendment: ADR-0003
+scope-token normalization fix". The body is still standup-prose — where it stood, what changed
+it, why the new decision is correct — never a typed `Decision`/`Outcome`/`SUPERSEDES` shape.
 
-ADR-scope episodes are not ticket-scoped: unlike the other three scopes, never reconcile them
-against a GitHub issue's open/closed status (there usually isn't one), and never age them out.
-Amendment history is durable by design — it's the whole reason this trigger exists — so the
-"Resolution as event" aging-out mechanism above doesn't apply here.
+ADR-scope memories are not ticket-scoped: unlike the other three scopes, never reconcile them
+against a GitHub issue's open/closed status (there usually isn't one), and never treat them as
+resolved. Amendment history is durable by design — it's the whole reason this trigger exists —
+so the "Resolution as event" mechanism above doesn't apply here.
 
-## `add_memory` call
+## `add_memories` call
 
-- `name`: a short episode title, e.g. `"Blocker: #78 staging 500s"` or `"Resolved: #78
-  staging blocker"`.
-- `group_id`: the single, explicit resolved scope (see "Write scope" above) — never rely on
-  the server's configured default (`GRAPHITI_GROUP_ID`, `main`).
-- `reference_time`: ISO-8601 (e.g. `2026-07-11T14:30:00Z`) — when the event actually
-  happened, not just when you happened to write it.
-- `episode_body`: the prose note itself (see examples above).
-- `source`: `"text"` (default) unless feeding structured JSON, in which case `"json"` with a
-  properly-escaped JSON string.
+`add_memories(text=...)` — the only parameter. Build `text` as a header line followed by the
+prose, with a short natural-language lead that repeats the scope key so the extractor has a
+reason to keep it:
 
-## Other write/delete tools
+```
+[scope: <scope key>] [kind: <blocker|drift|stopping-point|descope|resolution|adr-amendment>] [status: <open|resolved|current>] [at: <ISO-8601>]
+<scope key>: <standup prose — where it stands / the catch / where to pick up>
+```
 
-- `delete_episode(uuid=...)` / `delete_entity_edge(uuid=...)`: remove a mistaken write.
-  Cascade behavior is scoped to what that episode/edge solely created — check the tool's own
-  docstring before relying on it for a large mistake.
+- `scope`: the single, explicit resolved scope (see "Write scope" above) — always set it; there
+  is no server-side default scope to fall back on.
+- `at`: ISO-8601 (e.g. `2026-07-11T14:30:00Z`) — when the event actually happened. The server's
+  `created_at` records when you wrote it, which can differ.
+- Write in plain third-person statements. Mem0's default extractor is tuned for personal facts
+  and preferences and may rewrite or drop engineering notes.
+
+**Always inspect the response.** `{"results": []}` means the extractor found nothing worth
+storing and **nothing was saved**; rephrase more concretely and retry once, then tell the human.
+After your first write in a session, `list_memories` (or `search_memory` on the scope token) once
+to confirm the header survived extraction — if the extractor stripped the scope token, reads
+cannot filter by scope and you should say so.
+
+## Other tools
+
+- `list_memories()` and `search_memory(query)` read; see `agentic-memory-read`.
+- `delete_all_memories()` is destructive and unscoped — see "Supersession discipline". There
+  is no per-note delete tool.
 
 ## Rules
 
@@ -153,7 +184,7 @@ Amendment history is durable by design — it's the whole reason this trigger ex
   should update or close the ticket, update the ticket; a real architectural decision still
   goes to an ADR. Memory is the tacit catch-net for what falls between those — the small
   stuff that evaporates today.
-- Never store secrets, tokens, or credentials in memory episodes.
+- Never store secrets, tokens, or credentials in memories.
 - Event-driven: not continuous (don't log every step) and not session-end-only (write
   blockers/drift/resolutions as they happen).
 

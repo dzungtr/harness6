@@ -57,7 +57,7 @@ Cite the source inline with the claim so the human can check it.
 
 ## Pillar 1 — Memory
 
-Harness6 provides two complementary forms of memory. RAG memory uses `memsearch` to index `docs/` into the Milvus vector database for decision and constraint searches, including glossary lookups, fact checks, and how-to questions. Temporal memory uses Graphiti through the `memory` MCP server and the `agentic-memory-read` and `agentic-memory-write` skills to preserve ambient progress-state between sessions.
+Harness6 provides two complementary forms of memory. RAG memory uses `memsearch` to index `docs/` into the Milvus vector database for decision and constraint searches, including glossary lookups, fact checks, and how-to questions. Agentic memory uses a self-hosted Mem0 store (OpenMemory MCP server) through the `memory` MCP server and the `agentic-memory-read` and `agentic-memory-write` skills to preserve ambient progress-state between sessions.
 
 ### Memsearch auto-context
 
@@ -94,9 +94,9 @@ The temptation to list files first and infer coverage from names is a known fail
 
 ### Temporal memory
 
-Graphiti memory is ambient progress-state, not a decision store: a self-service, non-authoritative catch-net so a later cold start can pick up smoothly. The `graphiti-mcp` Compose service lives in `plugins/harness6/infrastructure/docker-compose.yml`; its entity-type schema is in `plugins/harness6/infrastructure/config.yaml`, and its environment variables are in `plugins/harness6/infrastructure/.env.example`.
+Agentic memory is ambient progress-state, not a decision store: a self-service, non-authoritative catch-net so a later cold start can pick up smoothly. The Mem0 Compose stack lives in `plugins/harness6/infrastructure/mem0/docker-compose.yml` (a separate Compose project) and its environment variables are in `plugins/harness6/infrastructure/mem0/.env.example`; the substrate decision is `docs/adr/0009-mem0-agentic-memory-substrate.md`. The Graphiti services in `plugins/harness6/infrastructure/docker-compose.yml` are no longer what the skills point at.
 
-- **Cold-start / picking up work:** before touching code, use the `agentic-memory-read` skill for the resolved scope derived from the git remote plus branch, PR, or task brief. Re-query when descending from an epic into a child ticket mid-session.
+- **Cold-start / picking up work:** before touching code, use the `agentic-memory-read` skill for the resolved scope derived from the git remote plus branch, PR, or task brief. Re-query when descending from an epic into a child ticket mid-session. The `memory` tools take text only, so scope travels in a header line in the memory text and search is semantic, not recency-ordered; the skills spell out how to filter and sort.
 - **During work:** use the `agentic-memory-write` skill event-driven — on a blocker, discovered drift, stopping point, silent descope, or resolution of a previously noted blocker or drift. Write standup prose for the next developer: where the work stands, what the catch is, and where to pick up. Do not continuously log every step.
 - **Three homes:** ADR (architectural _why_) / GitHub Issues (_what_, system of record) / Memory (tacit catch-net, non-authoritative). Memory never substitutes for ticket or ADR hygiene: update the ticket when its state changes, and record real architectural decisions in ADRs.
 - Never write secrets to memory.

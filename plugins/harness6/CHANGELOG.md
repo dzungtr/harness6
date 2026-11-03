@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+Self-hosted Mem0 replaces Graphiti as the backend the agentic-memory skills point at. The Graphiti services, `infrastructure/config.yaml` and the Kubernetes manifests are unchanged.
+
+### Added
+
+- **`infrastructure/mem0/`** — separate Compose project (`harness6-mem0`) with its own `.env.example`: OpenMemory MCP + Qdrant (`mem0_store`) for the MCP surface, plus Mem0's REST API with Postgres/pgvector and Neo4j. Loopback-bound, env-overridable host ports (`8765`, `8888`, `6333`, `8432`, `8474`, `8687`) and `mem0-*` container names that do not collide with the existing stack. Two build-time patches (`patch-main.py`, `patch-openmemory.py`) make the upstream images honor `MEM_EXTRACTOR_MODEL`, `MEM_EMBED_MODEL`, `EMBEDDER_API_URL` and `EMBEDDER_DIMENSIONS`, which they otherwise hardcode.
+- **`init` sections 5b and 6c** — start the Mem0 stack and register the `memory` MCP server (`claude mcp add --transport sse memory http://localhost:8765/mcp/claude-code/sse/<user>`).
+- **ADR 0009** — records the substrate switch from Graphiti to Mem0 and supersedes the substrate decision in ADR 0003.
+
+### Changed
+
+- **`agentic-memory-read` / `agentic-memory-write` rewritten for Mem0 / OpenMemory MCP** — tools are `add_memories(text)`, `search_memory(query)`, `list_memories()` and `delete_all_memories()`. Scope keys (`owner_repo`, `owner_repo_<issue>`, `owner_repo_adr_<NNNN>`) become a header token in the memory text instead of a Graphiti `group_id`; reads filter by it client-side and sort by `updated_at`/`created_at`. Adds supersession discipline and the semantic-not-recency ranking caveat, and drops the Graphiti-only tool signatures and RediSearch history.
+- **`signoz-*-queries` skills** — cached-schema reads and writes use `search_memory` / `add_memories` with a `global` scope token instead of the Graphiti tool names.
+- **Docs** — the reference instructions (`hooks/references/harness6.md`), plugin README, manifests descriptions and root README now describe Mem0 agentic memory. `init` notes that the Kubernetes path still deploys Graphiti.
+
 ## [0.4.0] - 2026-09-22
 
 Minor release adding the aurora artifact-review MCP server to the infrastructure stack and wiring it into the report + init skills.

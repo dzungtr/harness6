@@ -24,11 +24,13 @@ Follow the **discover → query → cache** loop:
 
 ## Step 0: read cached knowledge from agentic memory first
 
-Before any discovery call, search the shared memory graph for previously
-verified schema facts:
+Before any discovery call, search shared memory for previously verified
+schema facts. The `memory` server's `search_memory` takes only a query and is
+unscoped, so put the `global` scope token in the query and keep only hits
+whose header reads `[scope: global]` (see `agentic-memory-read`):
 
 ```
-agentic-memory_search_memory_facts(query="SigNoz traces schema <topic>", group_ids=["global"])
+search_memory(query="global SigNoz traces schema <topic>")
 ```
 
 If the memory already names the service, span names, and attributes relevant
@@ -37,8 +39,9 @@ to the question (with a verification date), **spot-check one cheap call**
 go straight to Step 2. If the spot-check 404s or returns zero rows, treat the
 memory as stale and fall through to Step 1.
 
-Use group_id `global` for all reads and writes here — this knowledge is
-project- and agent-independent.
+Use the scope token `global` for all reads and writes here — this knowledge
+is project- and agent-independent. If several hits match, trust the newest
+by `updated_at` (else `created_at`).
 
 ## Step 1: discover the telemetry structure
 
@@ -98,20 +101,16 @@ discovery tokens. Write **structural facts only** (names, contexts, types,
 existence), never query results that age:
 
 ```
-agentic-memory_add_memory(
-  name="SigNoz traces schema — <agent-service>",
-  episode_body="...service name; span names and what each covers; attribute
-    names with fieldContext/fieldDataType; confirmed gaps (attrs that do NOT
-    exist); filter syntax gotchas; verified YYYY-MM-DD ...",
-  group_id="global",
-  source="text",
-  source_description="SigNoz schema discovery via cc-observability"
-)
+add_memories(text="[scope: global] [kind: schema] [status: current] [at: <ISO-8601>]\nSigNoz traces schema — <agent-service>:
+  service name; span names and what each covers; attribute names with
+  fieldContext/fieldDataType; confirmed gaps (attrs that do NOT exist);
+  filter syntax gotchas; verified YYYY-MM-DD ...")
 ```
 
-Keep the write compact — one episode per service, updated by adding a fresh
-episode when the schema drifts (add a new one rather than silently
-overwriting; staleness is detected by the Step 0 spot-check).
+Keep the write compact — one memory per service, and when the schema drifts
+add a fresh one that says it `supersedes:` the old (the tools cannot edit a
+single memory; staleness is detected by the Step 0 spot-check). Check the
+response: `{"results": []}` means nothing was stored.
 
 ## Common Mistakes
 

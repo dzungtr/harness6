@@ -1,0 +1,193 @@
+# Mem0 self-hosted agentic-memory stack (OpenMemory MCP + Mem0 REST API).
+#
+# This is the backend the agentic-memory-read / agentic-memory-write skills
+# point at (ADR 0009). It is a SEPARATE Compose project from the shared stack in
+# ../docker-compose.yml: it coexists with, and does not touch, the Graphiti
+# services there (graphiti-mcp, neo4j / container names mem-graphiti-mcp,
+# mem-neo4j). Those remain available for existing deployments; the skills just
+# no longer point at them. Distinct project name, container names, volumes and
+# host ports, so the two stacks can run side by side.
+#
+# Bring up (from this directory):
+#   cp .env.example .env   # fill in OPENAI_API_KEY etc.
+#   docker compose up -d --build
+# Register the MCP server (see skills/init/SKILL.md):
+#   claude mcp add --transport sse memory http://localhost:8765/mcp/claude-code/sse/<user>
+#
+# Two independent memory surfaces:
+#   1. openmemory-mcp (+ its Qdrant sidecar `mem0_store`) — what Claude Code
+#      talks to. Tools: add_memories, search_memory, list_memories,
+#      delete_all_memories. Required.
+#   2. mem0-api (+ Postgres/pgvector + Neo4j) — Mem0's REST server, with real
+#      metadata filters. Optional, for scripts/SDKs. It does NOT share storage
+#      with openmemory-mcp (separate upstream projects): memories written to
+#      one are invisible to the other. To run only the MCP surface:
+#        docker compose up -d --build openmemory-mcp
+#
+# LLM + embeddings call the OpenAI-compatible endpoint from .env directly (no
+# gateway runs in this stack). What the upstream images honor, verified by
+# reading the images and running them:
+#   - OPENAI_API_KEY, OPENAI_BASE_URL: honored natively by mem0's OpenAI
+#     client in both images (one base URL for LLM and embedder).
+#   - MEM_EXTRACTOR_MODEL, MEM_EMBED_MODEL, EMBEDDER_API_URL, EMBEDDER_DIMENSIONS:
+#     NOT honored upstream — both images hardcode gpt-4o / gpt-4o-mini and
+#     text-embedding-3-small. The two small build-time patches next to this
+#     file (patch-main.py, patch-openmemory.py) add them; they fail the image
+#     build if upstream's code changes shape.
+#   - Do NOT set OPENROUTER_API_KEY in these containers: mem0's OpenAI client
+#     prefers OpenRouter base-url resolution when it is present and would
+#     silently ignore OPENAI_BASE_URL.
+#   - SEMAPHORE_LIMIT / GRAPHITI_* from the Graphiti stack are not wired: the
+#     images read no equivalent ingestion-concurrency setting.
+# Not supported: changing EMBEDDER_DIMENSIONS on a populated store. The
+# vector collections are created at first use with that dimension; wipe the
+# volumes first.
+#
+# Gotchas (each confirmed by running the images):
+#   - The Qdrant service MUST be named `mem0_store`: openmemory-mcp hardcodes
+#     that hostname with no env override. A mismatch does not fail with a 4xx/5xx
+#     — endpoints return HTTP 200 {"error":"Memory client is not available"}.
+#     Health-check on the openmemory-mcp log line `Memory client initialized
+#     successfully`, not on HTTP status.
+#   - openmemory-mcp keeps its user/app/ACL tables in SQLite. Upstream's
+#     default path is inside the container filesystem, so recreating the
+#     container orphaned the Qdrant vectors (list_memories filters by that
+#     table). DATABASE_URL below moves it onto a named volume.
+#   - The published images are old (mem0/mem0-api-server 2025-09,
+#     mem0/openmemory-mcp 2025-06) and tagged :latest. Pin digests before
+#     relying on this beyond local use.
+name: harness6-mem0
+
+services:
+  mem0-postgres:
+    image: pgvector/pgvector:pg17
+    container_name: mem0-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "127.0.0.1:${MEM0_POSTGRES_PORT:-8432}:5432"
+    volumes:
+      - mem0_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    shm_size: 128mb
+
+  # Graph store for mem0-api. server/main.py builds it unconditionally, so it
+  # is required for mem0-api (and not used by openmemory-mcp). Same image
+  # family as the Graphiti stack's `neo4j` service, plus the APOC plugin Mem0's
+  # graph memory needs (downloaded by the image on first start).
+  mem0-neo4j:
+    image: neo4j:5.26-community
+    container_name: mem0-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set (min 8 chars)}
+      NEO4J_PLUGINS: '["apoc"]'
+    ports:
+      - "127.0.0.1:${MEM0_NEO4J_BROWSER_PORT:-8474}:7474" # browser UI
+      - "127.0.0.1:${MEM0_NEO4J_BOLT_PORT:-8687}:7687" # bolt
+    volumes:
+      - mem0_neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  mem0-api:
+    build:
+      context: .
+      dockerfile: mem0-api.Dockerfile
+    image: harness6-mem0-api:local # mem0/mem0-api-server:latest + patches, see mem0-api.Dockerfile
+    container_name: mem0-api
+    restart: unless-stopped
+    depends_on:
+      mem0-postgres:
+        condition: service_healthy
+      mem0-neo4j:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${MEM0_API_PORT:-8888}:8000" # REST API, docs at /docs
+    environment:
+      # --- LLM + embeddings (OpenAI-compatible endpoint, same vars as ../.env.example) ---
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY required (see .env.example)}
+      # mem0's OpenAI client reads OPENAI_BASE_URL, not the OPENAI_API_URL name.
+      OPENAI_BASE_URL: ${OPENAI_API_URL:?OPENAI_API_URL required (see .env.example)}
+      # The next four are honored only through patch-main.py (see header).
+      MEM_EXTRACTOR_MODEL: ${MEM_EXTRACTOR_MODEL:-gpt-4o-mini}
+      MEM_EMBED_MODEL: ${MEM_EMBED_MODEL:-text-embedding-3-small}
+      EMBEDDER_API_URL: ${EMBEDDER_API_URL:-${OPENAI_API_URL}}
+      EMBEDDER_DIMENSIONS: ${EMBEDDER_DIMENSIONS:-1536}
+      # --- vector store (Postgres + pgvector) ---
+      POSTGRES_HOST: mem0-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_COLLECTION_NAME: memories
+      HISTORY_DB_PATH: /app/history/history.db
+      # --- graph store (Neo4j) ---
+      NEO4J_URI: bolt://mem0-neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set (min 8 chars)}
+    volumes:
+      - mem0_history:/app/history
+    extra_hosts:
+      # Lets OPENAI_API_URL / EMBEDDER_API_URL point at a local server on the
+      # host (e.g. Ollama at http://host.docker.internal:11434/v1).
+      - "host.docker.internal:host-gateway"
+
+  # Service name MUST stay `mem0_store` — see the header gotcha. Qdrant's data
+  # directory is /qdrant/storage.
+  mem0_store:
+    image: qdrant/qdrant:latest
+    container_name: mem0-qdrant
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MEM0_QDRANT_PORT:-6333}:6333"
+    volumes:
+      - mem0_qdrant_data:/qdrant/storage
+
+  openmemory-mcp:
+    build:
+      context: .
+      dockerfile: openmemory-mcp.Dockerfile
+    image: harness6-openmemory-mcp:local # mem0/openmemory-mcp:latest + patch, see openmemory-mcp.Dockerfile
+    container_name: mem0-openmemory-mcp
+    restart: unless-stopped
+    depends_on:
+      - mem0_store
+    ports:
+      # MCP SSE endpoint: /mcp/<client>/sse/<user>; REST docs at /docs
+      - "127.0.0.1:${MEM0_MCP_PORT:-8765}:8765"
+    environment:
+      # Default user created at startup; the user segment of the SSE URL is what
+      # actually scopes memories (any value works, it is created on first use).
+      USER: ${MEM_USER_ID:-default_user}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY required (see .env.example)}
+      OPENAI_BASE_URL: ${OPENAI_API_URL:?OPENAI_API_URL required (see .env.example)}
+      # Honored only through patch-openmemory.py (see header).
+      MEM_EXTRACTOR_MODEL: ${MEM_EXTRACTOR_MODEL:-gpt-4o-mini}
+      MEM_EMBED_MODEL: ${MEM_EMBED_MODEL:-text-embedding-3-small}
+      EMBEDDER_API_URL: ${EMBEDDER_API_URL:-${OPENAI_API_URL}}
+      EMBEDDER_DIMENSIONS: ${EMBEDDER_DIMENSIONS:-1536}
+      # Upstream default is ./openmemory.db inside the container filesystem.
+      DATABASE_URL: sqlite:////data/openmemory.db
+    volumes:
+      - mem0_openmemory_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  mem0_postgres_data:
+  mem0_neo4j_data:
+  mem0_history:
+  mem0_qdrant_data:
+  mem0_openmemory_data:
