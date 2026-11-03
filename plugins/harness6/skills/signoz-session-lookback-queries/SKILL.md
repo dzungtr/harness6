@@ -28,11 +28,12 @@ Follow the **discover → query → cache** loop.
 ## Step 0: read cached knowledge from agentic memory first
 
 ```
-search_memory(query="global SigNoz session id full I/O schema")
+search_memories(query="SigNoz session id full I/O schema",
+                filters={"AND": [{"run_id": "global"}]})
 ```
 
-`search_memory` is unscoped: keep only hits whose header reads `[scope: global]`
-and prefer the newest by `updated_at` (else `created_at`).
+Use a hit only if `get_memory(id)` shows `lifecycle_state: "active"` (search
+still returns superseded notes); prefer the newest by `created_at`.
 
 Spot-check any cached names with one cheap 1h call before trusting them.
 
@@ -100,9 +101,9 @@ Rules and hard-won gotchas:
 
 Persist structural facts only — which signal carries the session id, which
 services export, which event types carry full payloads vs metadata only, the
-logs row shape, verification date — via `add_memories`, with a
-`[scope: global] [kind: schema]` header line (see `agentic-memory-write`).
-Never cache session contents or query results.
+logs row shape, verification date — via `add_memory` with `run_id="global"`
+and `metadata={"scope": "global", "kind": "schema", "status": "current"}`
+(see `agentic-memory-write`). Never cache session contents or query results.
 
 ## Common Mistakes
 

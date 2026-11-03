@@ -3,8 +3,8 @@ name: init
 description: >
   Initialize the shared harness6 infrastructure stack after installing the plugin. Resolve the
   plugin cache root from the active harness, choose a container runtime, scaffold infrastructure/.env
-  without overwriting it, start Compose, start the Mem0 agentic-memory stack, register the bundled
-  MCP servers (including the `memory` MCP server), and set up memsearch.
+  without overwriting it, start Compose, register the bundled MCP servers, register the hosted Mem0
+  platform MCP server for agentic memory, and set up memsearch.
 ---
 
 ## 1. Resolve the plugin root
@@ -155,9 +155,8 @@ Report to the user (replace `<node>` with any reachable node IP):
 - SigNoz UI: `http://<node>:<nodePort-of-8080>`
 - OTLP endpoints: `<node>:<nodePort-of-4317>` (gRPC) and `<node>:<nodePort-of-4318>` (HTTP)
 - graphiti-mcp: `http://<node>:30800/mcp/` (health: `/health`). `deploy.sh` still deploys
-  Graphiti here, but the `agentic-memory-*` skills no longer point at it (ADR 0009). Mem0 is
-  Compose-only — it has no Kubernetes manifests — so section 5b below applies on this path too,
-  if the user has a local container runtime and wants agentic memory.
+  Graphiti here, but the `agentic-memory-*` skills no longer point at it (ADR 0009): they use the
+  hosted Mem0 platform, which needs nothing deployed, so section 6c applies on this path too.
 - Milvus (memsearch URI): `<node>:<nodePort-of-19530>`
 
 Then continue with `.mcp.json` registration and memsearch setup (sections 6–7), using the
@@ -226,59 +225,6 @@ Only after `healthy`, report the SigNoz UI as `http://localhost:${SIGNOZ_UI_PORT
 Compose-declared host port; if none is declared, report `http://localhost:3301` with a note that
 3301 is the default).
 
-## 5b. Start the Mem0 agentic-memory stack (both paths)
-
-The `agentic-memory-read` / `agentic-memory-write` skills use a self-hosted Mem0 stack
-(OpenMemory MCP server + Qdrant, plus Mem0's REST API with Postgres/pgvector and Neo4j). It is its
-own Compose project (`harness6-mem0`) in `<HARNESS6_PLUGIN_ROOT>/infrastructure/mem0/`, with its
-own `.env`, container names (`mem0-*`) and loopback host ports (`8765`, `8888`, `6333`, `8432`,
-`8474`, `8687`; all overridable). It coexists with the Graphiti services of the main Compose file
-(`mem-graphiti-mcp`, `mem-neo4j`) and does not modify them, so section 4 is unaffected: its
-single-Compose-file check only looks at the top level of `$INFRA_ROOT`.
-
-Ask the user whether to start it; skip with a one-line note if they decline. Then, with
-`CONTAINER_RUNTIME` from section 2:
-
-```bash
-MEM0_ROOT="$INFRA_ROOT/mem0"
-MEM0_ENV="$MEM0_ROOT/.env"
-[ -f "$MEM0_ROOT/.env.example" ] || { echo "init: $MEM0_ROOT/.env.example not found. Aborting." >&2; exit 1; }
-if [ ! -f "$MEM0_ENV" ]; then
-  cp -- "$MEM0_ROOT/.env.example" "$MEM0_ENV"
-fi
-```
-
-Show the assignment lines of `.env.example` (same `sed` as section 3) and ask the user to fill
-`OPENAI_API_KEY`, `OPENAI_API_URL`, the model/embedder values, and the two passwords. The variable
-names match the main `.env`, so values can be copied across. Never overwrite an existing `.env`;
-do not start anything until the user confirms. Then validate and start:
-
-```bash
-cd "$MEM0_ROOT"
-$CONTAINER_RUNTIME compose --env-file "$MEM0_ENV" -f "$MEM0_ROOT/docker-compose.yml" config >/dev/null
-$CONTAINER_RUNTIME compose --env-file "$MEM0_ENV" -f "$MEM0_ROOT/docker-compose.yml" up -d --build
-```
-
-The first start builds two small patched images on top of the upstream Mem0 images and pulls
-several more, so it takes a few minutes. If a command fails, report the error and stop. To run
-only the MCP surface the skills need, append `openmemory-mcp` to the `up` command.
-
-Verify with the real signals, not HTTP status alone (the failure mode of this stack is HTTP 200
-with `{"error":"Memory client is not available"}`):
-
-```bash
-MEM0_MCP_PORT="${MEM0_MCP_PORT:-8765}"
-curl -fsS -o /dev/null -w 'docs: %{http_code}\n' "http://localhost:$MEM0_MCP_PORT/docs"
-curl -sS -m 3 -o /dev/null -D - "http://localhost:$MEM0_MCP_PORT/mcp/claude-code/sse/<user>" | grep -i '^content-type'   # expect text/event-stream
-```
-
-`Memory client initialized successfully` appears in `docker logs mem0-openmemory-mcp` only after
-the first memory call, so it is checked after section 6c registers the server and a first
-`add_memories`/`search_memory` call has been made. A log line `Failed to initialize memory client`
-means the Qdrant sidecar (which must stay named `mem0_store`) is unreachable. A live memory write
-also needs a working `OPENAI_API_KEY`/`OPENAI_API_URL`; report it plainly if that has not been
-exercised.
-
 ## 6. Register the repository MCP servers (both paths)
 
 The repository `.mcp.json` is the source configuration. Ask the user which Claude Code scope to
@@ -293,7 +239,7 @@ server names, and ask for confirmation before writing. Preserve unrelated existi
 servers by merging rather than replacing the target. For a project target that is the same file as
 the source, report that it is already installed and do not copy it. If the source `.mcp.json` cannot
 be found at the repository root, report the path and skip registration rather than inventing config.
-The copied entries must retain their HTTP URLs. The `memory` MCP server is not part of this
+The copied entries must retain their HTTP URLs. The `mem0-mcp` MCP server is not part of this
 copy — it is registered separately in section 6c.
 
 ## 6b. Register the aurora MCP server at user scope (both paths)
@@ -327,29 +273,40 @@ Note for the Kubernetes path (section 3c): the Kubernetes manifests do not curre
 it exists only in the Compose stack. If the user chose Kubernetes and has no locally-running aurora,
 skip this registration with a one-line explanation rather than registering a dead URL.
 
-## 6c. Register the `memory` MCP server (both paths)
+## 6c. Register the Mem0 platform MCP server (both paths)
 
-Registers the OpenMemory MCP endpoint from section 5b as the `memory` MCP server. Ask the user for
-the memory user id (any stable per-person string; default `MEM_USER_ID` from `mem0/.env`) and the
-scope (`user` or `project`; user scope is typical since the server is not repo-specific). Before
-registering, probe the SSE URL (expect `200` and `text/event-stream`); if it is unreachable, report
-the URL and stop — never register an MCP server that is not responding. Check for an existing
-registration and do not silently overwrite one:
+The `agentic-memory-read` / `agentic-memory-write` skills use the **hosted Mem0 platform**
+(`https://mcp.mem0.ai/mcp`, HTTP transport, OAuth) as the `mem0-mcp` MCP server. Nothing is
+deployed locally, so this works on both the Compose and Kubernetes paths.
 
-```bash
-claude mcp get memory 2>/dev/null || true
-```
+Tell the user before registering: every memory the skills write is stored on Mem0's hosted
+service, outside their machine, so secrets and private incident details must never be written
+(`agentic-memory-write` repeats this). Ask whether to proceed and for the scope (`user` or
+`project`; user scope is typical since the server is not repo-specific). Skip with a one-line note
+if they decline.
 
-If `memory` already exists and points at a different URL (for example the old Graphiti endpoint
-`http://localhost:8121/mcp/`), show it and ask whether to replace it
-(`claude mcp remove memory --scope <scope>` then re-add). Otherwise register:
+Check for an existing registration and do not silently overwrite one:
 
 ```bash
-claude mcp add --scope user --transport sse memory "http://localhost:${MEM0_MCP_PORT:-8765}/mcp/claude-code/sse/<user>"
+claude mcp get mem0-mcp 2>/dev/null || true
 ```
 
-Keep the user id identical across machines and sessions that should share memory: the user
-segment of the URL is the only partition the server enforces.
+If `mem0-mcp` already exists and points at `https://mcp.mem0.ai/mcp`, report it as already
+registered. If it points elsewhere, show it and ask whether to replace it
+(`claude mcp remove mem0-mcp --scope <scope>` then re-add). Otherwise register:
+
+```bash
+claude mcp add --scope <scope> --transport http mem0-mcp https://mcp.mem0.ai/mcp
+```
+
+The server needs an OAuth sign-in that only the user can complete: ask them to run `/mcp`, choose
+`mem0-mcp`, and authenticate, then confirm `claude mcp get mem0-mcp` reports `Connected`. Do not
+claim agentic memory works until a first `search_memories` call returns without an auth error.
+
+A legacy Graphiti server registered under the name `memory` is unaffected (the new server is named
+`mem0-mcp` so the two do not collide). Offer to remove it
+(`claude mcp remove memory --scope <scope>`) only if the user no longer wants Graphiti, and never
+remove it unasked.
 
 ## 7. Set up memsearch (both paths)
 

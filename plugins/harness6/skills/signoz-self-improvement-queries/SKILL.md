@@ -25,13 +25,16 @@ Follow the **discover → query → cache** loop:
 ## Step 0: read cached knowledge from agentic memory first
 
 Before any discovery call, search shared memory for previously verified
-schema facts. The `memory` server's `search_memory` takes only a query and is
-unscoped, so put the `global` scope token in the query and keep only hits
-whose header reads `[scope: global]` (see `agentic-memory-read`):
+schema facts from the `mem0-mcp` server, scoped to `run_id="global"`
+(see `agentic-memory-read`):
 
 ```
-search_memory(query="global SigNoz traces schema <topic>")
+search_memories(query="SigNoz traces schema <topic>",
+                filters={"AND": [{"run_id": "global"}]})
 ```
+
+Search can still return superseded notes: call `get_memory(id)` on the hit you
+intend to trust and use it only if `lifecycle_state` is `active`.
 
 If the memory already names the service, span names, and attributes relevant
 to the question (with a verification date), **spot-check one cheap call**
@@ -39,9 +42,9 @@ to the question (with a verification date), **spot-check one cheap call**
 go straight to Step 2. If the spot-check 404s or returns zero rows, treat the
 memory as stale and fall through to Step 1.
 
-Use the scope token `global` for all reads and writes here — this knowledge
-is project- and agent-independent. If several hits match, trust the newest
-by `updated_at` (else `created_at`).
+Use `run_id="global"` for all reads and writes here — this knowledge
+is project- and agent-independent. If several active hits match, trust the
+newest by `created_at`.
 
 ## Step 1: discover the telemetry structure
 
@@ -101,16 +104,22 @@ discovery tokens. Write **structural facts only** (names, contexts, types,
 existence), never query results that age:
 
 ```
-add_memories(text="[scope: global] [kind: schema] [status: current] [at: <ISO-8601>]\nSigNoz traces schema — <agent-service>:
-  service name; span names and what each covers; attribute names with
-  fieldContext/fieldDataType; confirmed gaps (attrs that do NOT exist);
-  filter syntax gotchas; verified YYYY-MM-DD ...")
+add_memory(
+  text="SigNoz traces schema — <agent-service>: service name; span names and
+    what each covers; attribute names with fieldContext/fieldDataType;
+    confirmed gaps (attrs that do NOT exist); filter syntax gotchas;
+    verified YYYY-MM-DD ...",
+  run_id="global",
+  metadata={"scope": "global", "kind": "schema", "status": "current"}
+)
 ```
 
-Keep the write compact — one memory per service, and when the schema drifts
-add a fresh one that says it `supersedes:` the old (the tools cannot edit a
-single memory; staleness is detected by the Step 0 spot-check). Check the
-response: `{"results": []}` means nothing was stored.
+Keep the write compact — one memory per service. When the schema drifts, add
+a fresh memory that says it replaces the old one; the platform marks the old
+one superseded (asynchronously — see `agentic-memory-write`), or fix it in
+place with `update_memory`. The write is async: poll `get_event_status` and
+treat empty `results` as "nothing stored". Staleness is still caught by the
+Step 0 spot-check.
 
 ## Common Mistakes
 

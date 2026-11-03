@@ -22,11 +22,12 @@ previously existed and later disappeared from live data). Follow the
 ## Step 0: read cached knowledge from agentic memory first
 
 ```
-search_memory(query="global SigNoz gateway token cost schema")
+search_memories(query="SigNoz gateway token cost schema",
+                filters={"AND": [{"run_id": "global"}]})
 ```
 
-`search_memory` is unscoped: keep only hits whose header reads `[scope: global]`
-and prefer the newest by `updated_at` (else `created_at`).
+Use a hit only if `get_memory(id)` shows `lifecycle_state: "active"` (search
+still returns superseded notes); prefer the newest by `created_at`.
 
 If memory names the gateway service, its token/cost attributes, and a
 verification date, spot-check with one cheap 1h count on
@@ -79,9 +80,9 @@ Rules:
 
 Persist **structural facts only** (gateway service name, attribute names with
 `fieldContext`/`fieldDataType`, existence of cost attributes, gotchas,
-verification date) back via `add_memories`, with a
-`[scope: global] [kind: schema]` header line (see `agentic-memory-write`).
-Never cache result numbers or dollar amounts.
+verification date) back via `add_memory` with `run_id="global"` and
+`metadata={"scope": "global", "kind": "schema", "status": "current"}`
+(see `agentic-memory-write`). Never cache result numbers or dollar amounts.
 
 ## Common Mistakes
 

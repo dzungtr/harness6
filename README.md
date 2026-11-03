@@ -8,7 +8,7 @@ same git repository via the harness's native plugin marketplace.
 
 | Plugin | Path | Harnesses | Purpose |
 |--------|------|-----------|---------|
-| `harness6` | `plugins/harness6/` | Claude Code, Codex | Workflow skills (design-session, agentic-memory, memsearch, scope review, and more) + the `infrastructure/` docker-compose stack (SigNoz, Mem0 agentic memory) |
+| `harness6` | `plugins/harness6/` | Claude Code, Codex | Workflow skills (design-session, agentic-memory, memsearch, scope review, and more) + the `infrastructure/` docker-compose stack (SigNoz, Graphiti memory) |
 | `auto-review` | `plugins/auto-review/` | Codex | LLM auto-review hook for `PermissionRequest` events |
 
 ## Install

@@ -4,23 +4,22 @@ description: >
   Use whenever you hit a blocker, discover drift between ticket intent and delivered result,
   reach a stopping point (session end, context-limit handoff, done-pending-verification),
   silently descope something, or resolve a previously-noted blocker/drift, to persist that
-  ambient progress-state for the next cold start. Backed by a self-hosted Mem0 store (OpenMemory
-  MCP server) via the `memory` MCP server. Event-driven — not continuous per-step logging,
-  not session-end-only.
+  ambient progress-state for the next cold start. Backed by the hosted Mem0 platform via the
+  `mem0-mcp` MCP server, which supersedes stale facts automatically. Event-driven — not
+  continuous per-step logging, not session-end-only.
 ---
 
-# agentic-memory-write (Mem0 / OpenMemory MCP)
+# agentic-memory-write (Mem0 platform)
 
 Persists **ambient progress-state** — a standup note to the next developer — so a later cold
 start (yours or someone else's) can pick up smoothly. This is not a decision log: no
-`Decision`/`Outcome` typed shape, no schema file. Backed by the same self-hosted Mem0 stack as
-`agentic-memory-read` (`infrastructure/mem0/docker-compose.yml`), exposed as the `memory` MCP
-server. Decision record: `docs/adr/0009-mem0-agentic-memory-substrate.md`.
+`Decision`/`Outcome` typed shape, no schema file. Backed by the same hosted Mem0 platform as
+`agentic-memory-read`, exposed as the `mem0-mcp` MCP server. Decision record:
+`docs/adr/0009-mem0-agentic-memory-substrate.md`.
 
-The `memory` tools take **text only** — `add_memories(text)` has no metadata or id parameter
-(read from a running server's `tools/list`; see `agentic-memory-read` for the full table). Scope,
-kind and status therefore travel in a header line inside the text, and `agentic-memory-read`
-filters on it client-side.
+Scope, kind and status travel as **real fields** on each memory: `run_id` carries the scope key
+and `metadata` carries `scope`, `kind` and `status`. `agentic-memory-read` filters on them
+server-side.
 
 ## When to write (event-driven, not continuous)
 
@@ -93,90 +92,96 @@ The scope key is underscore-joined, not slash/hash-joined and not dash-joined. N
 owner/repo names with `_`, then lowercase — e.g. `acme-org/payments-service` →
 `acme_org_payments_service`. The final key must contain no character other than `[a-z0-9_]`
 plus `<issue>`/`<NNNN>` digits. This matches the project rule "repo `my-repo` → `my_repo`" and
-`agentic-memory-read`'s "Scope resolution" — keep them identical. It is used as the **scope
-token** in the header below.
+`agentic-memory-read`'s "Scope resolution" — keep them identical. It is the `run_id` of the
+memory.
 
 Don't write epic-level notes for single-ticket concerns — that breaks read-wide/write-narrow
 and pollutes every sibling ticket's epic-level read.
 
-## Resolution as event
+## `add_memory` call
+
+```
+add_memory(
+  text="<standup prose, third person, naming the ticket and what it concerns>",
+  run_id="<scope key>",
+  metadata={"scope": "<scope key>",
+            "kind": "<blocker|drift|stopping-point|descope|resolution|adr-amendment>",
+            "status": "<open|resolved|current>"}
+)
+```
+
+- Omit `user_id`: the server applies the authenticated account's default (per the tool schema).
+  Pass it only when a team agreed on a shared id.
+- `run_id` and `metadata.scope` are always set to the single, explicit resolved scope — there is
+  no server-side default scope to fall back on.
+- Write plain third-person statements and name the ticket/PR in the text. The platform's
+  extractor rewrites the text and anchors it in time ("As of November 3, 2026, …"), so say in
+  the prose when the event happened if that differs from today.
+- **The write is asynchronous.** The call returns `{"event_id": "...", "status": "PENDING"}`,
+  not the stored memory. Call `get_event_status(event_id)` until `status` is `SUCCEEDED` (a few
+  seconds), then read `results`: each entry has `id`, the stored `data.memory`, and `event`
+  (`ADD`, `UPDATE`, `DELETE`, `NONE`). `FAILED` carries an `error`. **`results: null` or `[]`
+  after success means the extractor stored nothing** — rephrase more concretely and retry once,
+  then tell the human.
+- After your first write in a session, confirm it with
+  `search_memories(query=..., filters={"AND": [{"run_id": "<scope key>"}]})` to check that
+  `run_id` and metadata landed as intended.
+
+## Resolution as event (temporal supersession)
 
 When a blocker clears or drifted work gets finished, write a new memory that **names what it
-resolves**, with `kind: resolution` and a `resolves:` clause, e.g.:
+resolves**, with `kind: resolution`, `status: resolved`:
 
 ```
-[scope: owner_repo_78] [kind: resolution] [status: resolved] [at: 2026-07-12T09:00:00Z]
-Resolves the 2026-07-09 blocker on #78 (staging API returning 500s): staging was misconfigured
-(wrong env var), infra fixed it. Verified against staging now, all green.
+add_memory(
+  text="Ticket #78 blocker resolved: the staging API 500s (the blocker noted 2026-07-09) were a wrong env var; infra fixed it. Verification against staging passes, so #78 is no longer blocked.",
+  run_id="owner_repo_78",
+  metadata={"scope": "owner_repo_78", "kind": "resolution", "status": "resolved"}
+)
 ```
 
-Mem0 has no temporal invalidation: nothing marks the old blocker as no longer true, and
-retrieval ranks by semantic similarity, so the stale blocker can outrank its resolution. The
-`resolves:` text is what lets `agentic-memory-read` discard the older note. Never write a terse
-"fixed" with no reference to what it fixes.
+The platform compares the new memory with existing ones for the same user and scope. When it
+contradicts one, the older memory becomes `lifecycle_state: "superseded"` with `replaced_by` set
+to the new one. Verified live: a blocker note flipped to `superseded` within seconds of a
+resolution note in the same `run_id`.
 
-Mem0's add step also lets the extractor LLM compare the new fact with similar existing ones and
-choose `ADD`, `UPDATE`, `DELETE` or `NONE` (the `event` in the response). That sometimes merges
-or removes the stale note for you, but it is a model judgement, not a guarantee — do not rely on
-it, and do not assume a note was removed.
+What to rely on, and what not to:
 
-## Supersession discipline (reversing an earlier note)
+- The pass is a **model judgement** and **asynchronous**; it can lag by seconds to minutes and
+  is not guaranteed. A read straight after a write may still show the old note as `active`.
+- The wording is what lets the platform spot the contradiction: name the thing you resolve
+  ("the staging API 500s blocker") and say it is no longer true. Never write a terse "fixed"
+  with no reference to what it fixes.
+- Readers still get superseded memories from search and must check `lifecycle_state` with
+  `get_memory` (see `agentic-memory-read`). That is why the explicit `resolves:`-style wording
+  stays in the text: it is the fallback when the platform has not yet flipped the old note.
 
-The MCP tools cannot edit or delete a single memory, so you cannot mark an old note
-`superseded` in place. Instead:
+## Correcting or removing a single memory
 
-1. Search for the note you are reversing first (`search_memory`), so you can quote it.
-2. Write the replacement with `kind` set to the new state, `status: current`, and a
-   `supersedes:` clause that quotes the key words of the old note.
-3. Check the `add_memories` response `event`. `UPDATE`/`DELETE` entries mean Mem0 already
-   merged or removed the old note; `ADD` alone means both notes now exist and the reader will
-   rely on your `supersedes:` text.
-4. **Never** use `delete_all_memories` to retire one note: it wipes every memory the user's app
-   can access, across all projects. If a single memory must be physically removed or edited,
-   use OpenMemory's REST API (per-memory update/delete routes under `/api/v1/memories/`, listed
-   at `http://localhost:8765/docs`) or ask the human.
+The platform has per-memory tools, so you never need a wipe to retire one note:
+
+- **Fix a note in place** — `update_memory(memory_id, text=..., metadata=...)`; metadata is
+  merged. Use it to correct a wrong detail or flip `status`, not to record a new event (a new
+  event is a new memory, so the history is kept).
+- **Remove a note** — `delete_memory(memory_id)`, only after the human confirms the exact id
+  (the tool itself says so). Prefer superseding to deleting.
+- **`delete_all_memories`** deletes every memory in the given user/agent/app/run. Never call it
+  without a `run_id` you mean to wipe, and never with only `user_id`: that erases the account's
+  memory across all projects. Get the human's confirmation first.
 
 ## ADR scope
 
-Memory naming follows the same convention as any other write, e.g. a header of
-`[scope: owner_repo_adr_0003] [kind: adr-amendment]` and a first line "Amendment: ADR-0003
+Memory naming follows the same convention as any other write: `run_id` of
+`owner_repo_adr_0003`, `metadata.kind` of `adr-amendment`, and a first line "Amendment: ADR-0003
 scope-token normalization fix". The body is still standup-prose — where it stood, what changed
 it, why the new decision is correct — never a typed `Decision`/`Outcome`/`SUPERSEDES` shape.
 
 ADR-scope memories are not ticket-scoped: unlike the other three scopes, never reconcile them
 against a GitHub issue's open/closed status (there usually isn't one), and never treat them as
 resolved. Amendment history is durable by design — it's the whole reason this trigger exists —
-so the "Resolution as event" mechanism above doesn't apply here.
-
-## `add_memories` call
-
-`add_memories(text=...)` — the only parameter. Build `text` as a header line followed by the
-prose, with a short natural-language lead that repeats the scope key so the extractor has a
-reason to keep it:
-
-```
-[scope: <scope key>] [kind: <blocker|drift|stopping-point|descope|resolution|adr-amendment>] [status: <open|resolved|current>] [at: <ISO-8601>]
-<scope key>: <standup prose — where it stands / the catch / where to pick up>
-```
-
-- `scope`: the single, explicit resolved scope (see "Write scope" above) — always set it; there
-  is no server-side default scope to fall back on.
-- `at`: ISO-8601 (e.g. `2026-07-11T14:30:00Z`) — when the event actually happened. The server's
-  `created_at` records when you wrote it, which can differ.
-- Write in plain third-person statements. Mem0's default extractor is tuned for personal facts
-  and preferences and may rewrite or drop engineering notes.
-
-**Always inspect the response.** `{"results": []}` means the extractor found nothing worth
-storing and **nothing was saved**; rephrase more concretely and retry once, then tell the human.
-After your first write in a session, `list_memories` (or `search_memory` on the scope token) once
-to confirm the header survived extraction — if the extractor stripped the scope token, reads
-cannot filter by scope and you should say so.
-
-## Other tools
-
-- `list_memories()` and `search_memory(query)` read; see `agentic-memory-read`.
-- `delete_all_memories()` is destructive and unscoped — see "Supersession discipline". There
-  is no per-note delete tool.
+so the "Resolution as event" mechanism above doesn't apply here. Write ADR-scope notes with
+`infer=false` (stores the text as written, with no extraction), and readers ignore
+`lifecycle_state` for this scope, so a later amendment can never hide an earlier one.
 
 ## Rules
 
@@ -184,7 +189,8 @@ cannot filter by scope and you should say so.
   should update or close the ticket, update the ticket; a real architectural decision still
   goes to an ADR. Memory is the tacit catch-net for what falls between those — the small
   stuff that evaporates today.
-- Never store secrets, tokens, or credentials in memories.
+- **Everything you write is stored on Mem0's hosted service**, outside this machine. Never store
+  secrets, tokens, credentials, customer data or private incident details in memories.
 - Event-driven: not continuous (don't log every step) and not session-end-only (write
   blockers/drift/resolutions as they happen).
 

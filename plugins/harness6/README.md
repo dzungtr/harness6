@@ -1,7 +1,7 @@
 # harness6 — Claude Code & Codex Plugin
 
 harness6 ships the harness6 workflow skills and a local infrastructure stack
-(SigNoz observability, Mem0 agentic memory) as a self-contained plugin under
+(SigNoz observability, Graphiti memory) as a self-contained plugin under
 `plugins/harness6/`. It installs identically into Claude Code and Codex from the
 same git repository; the same `skills/` and `infrastructure/` tree ships to both
 harnesses with no duplication.
@@ -11,8 +11,7 @@ harnesses with no duplication.
 | Path | Purpose |
 |------|---------|
 | `skills/` | Workflow skills: `design-session`, `scope-review`, `agentic-memory-*`, `memsearch-*`, `init`, `autobot`, `signoz-self-improvement-queries`, `signoz-session-lookback-queries`, `signoz-token-cost-queries`, `pr-merged-cleanup` |
-| `infrastructure/` | Docker Compose stack + configs (SigNoz, OTel collector, Milvus; Graphiti services kept for existing deployments) |
-| `infrastructure/mem0/` | Separate Docker Compose project for the Mem0 agentic-memory stack (OpenMemory MCP + Qdrant, Mem0 REST API + Postgres/pgvector + Neo4j) that the `agentic-memory-*` skills use |
+| `infrastructure/` | Docker Compose stack + configs (SigNoz, OTel collector, Graphiti memory) |
 | `hooks/` | `SessionStart` hook (Codex + Claude Code) + bundled `references/harness6.md` |
 | `.codex-plugin/plugin.json` | Codex plugin manifest |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest |
@@ -48,7 +47,7 @@ plugins/harness6/
 ├── .claude-plugin/
 │   └── plugin.json                 # Claude Code manifest (skills: ./skills)
 ├── skills/                         # workflow skills (13 dirs)
-├── infrastructure/                 # docker-compose.yml, .env.example, signoz/, mem0/ (separate compose)
+├── infrastructure/                 # docker-compose.yml, .env.example, signoz/
 ├── hooks/                          # SessionStart hook (Codex + Claude Code)
 │   ├── hooks.json                  # shared hooks config, auto-discovered by both agents
 │   ├── loader.py                   # shared stdlib-only loader, +x
