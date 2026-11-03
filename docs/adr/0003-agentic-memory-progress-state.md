@@ -101,4 +101,4 @@ fallback `git log -p` on this file._
 | Date | PR | Change |
 |---|---|---|
 | 2026-08-24 | #31 | Add ADR scope as a fourth memory scope key (§3), outside the GitHub work hierarchy; exempt it from GitHub-status reconciliation and aging-out (§6). |
-| 2026-11-03 | PR_NUMBER | Substrate moved from Graphiti to Mem0 (§2, ADR 0009); scope key is a header token, not a `group_id` (§3); staleness no longer uses bi-temporal extraction (§6). |
+| 2026-11-03 | #93 | Substrate moved from Graphiti to Mem0 (§2, ADR 0009); scope key is a header token, not a `group_id` (§3); staleness no longer uses bi-temporal extraction (§6). |
