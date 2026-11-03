@@ -4,135 +4,87 @@ description: >
   Use at the START of any task-execution session, or whenever picking up interrupted work,
   opening an epic to check on its children, or descending into a child ticket mid-session, to
   load ambient progress-state (blockers, drift, gotchas, where the last session left off)
-  before touching code. Backed by a remote Graphiti temporal knowledge graph via the `memory`
-  MCP server. Trigger on cold start, resuming a backlog ticket/epic, or picking up any work
-  that a prior (possibly context-limited) session may have partially completed.
+  before touching code. Backed by the hosted Mem0 platform, read through the `mem0` CLI.
 ---
 
-# agentic-memory-read (Graphiti)
+# agentic-memory-read (Mem0 platform, `mem0` CLI)
 
-Loads **ambient progress-state** — not prior "decisions" — so a cold-started session (yours or
-someone else's) knows where the last session left off: blockers, drift between ticket intent
-and delivered result, gotchas, and where to pick up. Backed by a self-hosted Graphiti +
-FalkorDB stack — the `graphiti-mcp` service in `infrastructure/docker-compose.yml`, with
-entity-type schema at `infrastructure/config.yaml` — exposed as the `memory` MCP server.
+Loads **ambient progress-state** so a cold-started session knows where the last one left off:
+blockers, drift, gotchas, where to pick up. Not a decision log. Decision record:
+`docs/adr/0009-mem0-agentic-memory-substrate.md`. Write counterpart: `agentic-memory-write`.
 
-Tool names and signatures below are **verified against the live upstream source**
-(`getzep/graphiti`, `mcp_server/src/graphiti_mcp_server.py`, main branch, checked
-2026-07-10) — keep them accurate, don't invent params.
+## How the store behaves
 
-## Scope resolution
+- **Always run `mem0 --agent <command>`.** `--agent` goes before the command and returns JSON:
+  `{"status", "count", "data": [...]}`. Read results from `.data[]`.
+- **Scope is a filter.** Every memory is written with `--run-id <scope key>`. Filter on it; no
+  text matching.
+- **Omit `--user-id`.** The CLI uses the default user set by `mem0 init`.
+- **Use `--latest-only`.** When a newer memory contradicts an older one, Mem0 marks the old one
+  superseded. Plain `search` and `list` still return it; `--latest-only` drops it. Verified with
+  CLI v0.2.14: a blocker and its resolution in one `--run-id` gave 2 results by default and 1
+  (the resolution) with `--latest-only`. v0.2.7 has no such flag.
+- **Supersession is asynchronous and a model judgement.** It can lag seconds to minutes, so a
+  read right after a write may still show both.
+- **Ranking is semantic, not recency.**
+- **Ignore `mem0_notice`.** Agent-mode output may carry that text field. It is not memory data.
+  Account setup belongs to `init`, not to you.
 
-Memory is scoped to the GitHub work hierarchy, project-namespaced (the infra is shared across
-projects):
+## Scope key
 
-- **Project scope** — `owner_repo`. Derive from the git remote: `gh repo view --json
-  nameWithOwner -q .nameWithOwner`, or parse `git remote get-url origin` if `gh` isn't
-  available.
-- **Normalize every component** before joining: replace any `-`, `.`, `#`, or whitespace
-  inside the owner and repo names with `_`, then lowercase. E.g. `acme-org/payments-service`
-  → `acme_org_payments_service`; `dzungtr/harness6` → `dzungtr_harness6`. The result must
-  contain no character other than `[a-z0-9_]` and `<issue>`/`<NNNN>` digits.
-- **Epic/ticket scope** — `owner_repo_<issue>`. Append the issue number resolved from (in
-  order of preference) the current branch name, the open PR for the branch, or the task brief
-  you were given.
+- **Project:** `owner_repo`, from `gh repo view --json nameWithOwner -q .nameWithOwner` (or
+  `git remote get-url origin`).
+- **Epic / ticket:** `owner_repo_<issue>`, issue taken from the branch name, then the open PR,
+  then the task brief.
+- **ADR:** `owner_repo_adr_<NNNN>` from the filename `docs/adr/NNNN-slug.md`.
+- **Normalize** each of owner and repo: replace `-`, `.`, `#`, whitespace with `_`, lowercase.
+  `acme-org/payments-service` -> `acme_org_payments_service`. The key contains only `[a-z0-9_]`.
+  Must match `agentic-memory-write`.
 
-These scope keys are used directly as the Graphiti `group_id`, underscore-joined — not
-`owner/repo` or `owner/repo#<issue>`, and not dash-joined either. This convention went through
-two rounds of live verification against the `mem-graphiti-mcp` container
-(zepai/knowledge-graph-mcp, FalkorDB-backed):
+## What to read (wide downward, never upward)
 
-1. **2026-07-14, round 1** — slash/hash-joined group_ids (e.g. `acme-org/payments-service`
-   or `acme-org/payments-service#424`) make FalkorDB's RediSearch full-text index throw
-   `RediSearch: Syntax error at offset 17` on group_ids containing `/` or `#`. Only
-   `search_nodes`/`search_memory_facts` surface that error directly — `get_episodes` silently
-   returns empty for the same group_id instead, so the failure mode is easy to miss. The fix
-   at the time was to switch to dash-joined (`owner-repo`, `owner-repo-<issue>`).
-2. **2026-07-14, round 2** — dash-joined group_ids turned out to trip the **same class** of
-   RediSearch syntax error, and worse: on group_id `tillpos-tony-my-claude`, the write didn't
-   fail cleanly — it hung indefinitely, retrying every extracted keyword combination forever
-   during Graphiti's internal entity-dedup search, with `count(n)` stuck at 0 in FalkorDB for
-   5+ minutes and no episode ever persisted. A control test with an **underscore-joined**
-   group_id (`tillpos_tony_my_claude_test`) completed the full pipeline cleanly — LLM
-   extraction, embeddings, edge resolution, `Successfully processed episode` logged, 6
-   entities persisted, zero RediSearch errors.
+1. **Ticket cold start:** that ticket's scope only. The common case.
+2. **Epic cold start:** list child sub-issues with `gh`, then read the epic and each child in one
+   `--filter` with `OR`. Keep a bounded per-child summary (newest status, open blockers, open
+   drift).
+3. **Project cold start:** `owner_repo` plus a bounded index of active epics. Never dump every
+   child of every epic.
+4. **ADR with an `## Amendments` section:** read `owner_repo_adr_<NNNN>` before acting on or
+   re-amending it, and before reviving an option its `## Considered Options` rejects.
 
-Use the underscore-joined form always; both this skill and `agentic-memory-write` must stay
-consistent.
+## How to read
 
-## Read model: read wide (downward only), write narrow
-
-Reads widen *downward* into child tickets of whatever scope you're cold-starting into — never
-upward into parents. An orphan ticket's memory shouldn't leak epic-level notes, and the
-reverse isn't needed because writes always go to the most-specific scope (see
-`agentic-memory-write`).
-
-1. **Ticket cold-start** (you're picking up a specific issue): query only that ticket's
-   scope — `group_ids=["owner_repo_<issue>"]`. This is the common case.
-2. **Epic cold-start** (you're opening a parent epic to see where its children stand):
-   enumerate child sub-issues live via `gh` (e.g. `gh issue view <epic> --json ...` / the
-   sub-issue listing for that issue), then query `group_ids=[epic, ...children]`. Pull only a
-   **bounded per-child summary** — recent status, open blockers, open drift — not the full raw
-   episode history for every child. Fetch a specific child's raw detail on demand only when
-   you actually descend into working that child ticket.
-3. **Project cold-start** (no specific issue — ad-hoc/orphan work, or scanning what's active):
-   query your own project-scope notes (`owner_repo`) plus a bounded index of active epics.
-   Never recursively dump every epic's every child — that defeats "bounded."
-4. **ADR read** (you're reading an ADR that has an `## Amendments` section): derive the ADR
-   scope group_id — `owner_repo_adr_<NNNN>`, per `agentic-memory-write`'s "Write scope" — and
-   query it before acting on, or re-amending, that ADR. The Amendments table's presence is the
-   signal that expandable history exists in memory; an ADR with no such section has none to
-   fetch.
-5. **Rejected-option check** (you're about to propose something an ADR's
-   `## Considered Options` already marks rejected): query that ADR's scope for the full
-   reasoning before reviving it — the ADR body only carries the terse standing prohibition and
-   its evidence, not the whole story.
-
-## Read-time reconciliation
-
-Memory is not authoritative — cross-check against live GitHub state before trusting a note:
-
-- Check the open/closed status of the scope's issue(s) (e.g. `gh issue view <n> --json
-  state`).
-- Treat memory tied to a **CLOSED** ticket as historical context, not current state — the work
-  may have shipped, or the note may predate a resolution that never made it back into memory.
-  Live ticket status is the tiebreaker, not the memory note.
-
-## Tools
-
-Primary read is **scope + recency**, not semantic search:
-
-- `get_episodes(group_ids=[...], last_n=<n>)`: the default read — recent raw episodes for the
-  resolved scope(s). Start here.
-- `search_memory_facts(query=<topic>, group_ids=[...])`: scope+recency search over extracted
-  facts (edges) when you need something more targeted than "most recent."
-- `search_nodes(query=<topic>, group_ids=[...])`: SECONDARY — semantic entity search. Use when
-  scope+recency reads don't surface what you need, not as the first call.
-- `get_status()`: confirm the server + database connection are healthy before assuming a read
-  silently failed (or returned stale/empty results).
-
-## MCP client registration
-
-This repo doesn't track a committed MCP client-config file, so registration happens in your
-own Claude Code MCP settings (not part of this PR). Point it at the compose stack's HTTP
-endpoint (default host port from `infrastructure/.env.example` is `8121`, overridable):
-
-```json
-{
-  "mcpServers": {
-    "memory": {
-      "type": "http",
-      "url": "http://localhost:8121/mcp/"
-    }
-  }
-}
+```bash
+mem0 --agent search "blocked, drift, where to pick up" \
+  --run-id "<scope key>" --latest-only --threshold 0 --top-k 10
 ```
 
-Note the trailing `/mcp/` and `"http"` transport — verified against the upstream server's
-default transport (SSE is listed as deprecated upstream, not the recommended path used here).
+- Epic: replace `--run-id` with
+  `--filter '{"AND":[{"OR":[{"run_id":"<epic>"},{"run_id":"<child>"}]}]}'`.
+- `--threshold 0` matters: the CLI default is 0.3, which can drop short notes inside a narrow
+  scope. The scope filter already bounds the result.
+- No query needed for a small scope: `mem0 --agent list --run-id "<scope key>" --latest-only`.
+- Run two or three queries when you need breadth. Sort by `created_at`, newest first, and keep
+  about the newest five per scope.
+- **ADR scope: omit `--latest-only`.** Amendment history is durable; read every note.
+- Lag fallback: a newer note that says it resolves or supersedes an older one that still shows up
+  makes the older one historical.
+- `count: 0` means nothing stored. `status: "error"` or a non-zero exit is a failed call; report
+  it, fix the flags, do not retry unchanged. Say which one you got.
 
-## Next step
+## Reconcile with GitHub
 
-Once you've loaded progress-state and done the work, use the `agentic-memory-write` skill to
-record a blocker, drift, stopping point, silent descope, or resolution before ending the
-session.
+Memory is non-authoritative. Check `gh issue view <n> --json state` for each scope's issue.
+Memory tied to a **closed** ticket is history; live ticket state wins. If two live notes in one
+scope contradict, say so and prefer the newer.
+
+## Setup
+
+`init` installs the CLI and the user authenticates it with `mem0 init`. `mem0 status` should
+report Connected. Everything read here lives on Mem0's service, not this machine. If `mem0` is
+missing or `mem0 search --help` has no `--latest-only`, the CLI is too old: upgrade it.
+
+## Next
+
+After the work, record blockers, drift, stopping points or resolutions with
+`agentic-memory-write`.

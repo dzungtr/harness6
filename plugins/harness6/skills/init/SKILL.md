@@ -3,7 +3,8 @@ name: init
 description: >
   Initialize the shared harness6 infrastructure stack after installing the plugin. Resolve the
   plugin cache root from the active harness, choose a container runtime, scaffold infrastructure/.env
-  without overwriting it, start Compose, register the bundled MCP servers, and set up memsearch.
+  without overwriting it, start Compose, register the bundled MCP servers, install and authenticate the
+  `mem0` CLI for agentic memory, and set up memsearch.
 ---
 
 ## 1. Resolve the plugin root
@@ -153,7 +154,10 @@ Report to the user (replace `<node>` with any reachable node IP):
 
 - SigNoz UI: `http://<node>:<nodePort-of-8080>`
 - OTLP endpoints: `<node>:<nodePort-of-4317>` (gRPC) and `<node>:<nodePort-of-4318>` (HTTP)
-- graphiti-mcp: `http://<node>:30800/mcp/` (health: `/health`)
+- graphiti-mcp: `http://<node>:30800/mcp/` (health: `/health`). `deploy.sh` still deploys
+  Graphiti here, but the `agentic-memory-*` skills no longer point at it (ADR 0009): they use the
+  hosted Mem0 platform through the `mem0` CLI, which needs nothing deployed, so section 6c applies
+  on this path too.
 - Milvus (memsearch URI): `<node>:<nodePort-of-19530>`
 
 Then continue with `.mcp.json` registration and memsearch setup (sections 6–7), using the
@@ -236,7 +240,8 @@ server names, and ask for confirmation before writing. Preserve unrelated existi
 servers by merging rather than replacing the target. For a project target that is the same file as
 the source, report that it is already installed and do not copy it. If the source `.mcp.json` cannot
 be found at the repository root, report the path and skip registration rather than inventing config.
-The copied entries must retain the HTTP URLs (including `/mcp/` for agentic-memory).
+The copied entries must retain their HTTP URLs. Agentic memory is not an MCP server
+here — it uses the `mem0` CLI, set up separately in section 6c.
 
 ## 6b. Register the aurora MCP server at user scope (both paths)
 
@@ -268,6 +273,55 @@ claude mcp add --scope user --transport http aurora "${AURORA_MCP_URL:-http://lo
 Note for the Kubernetes path (section 3c): the Kubernetes manifests do not currently deploy aurora —
 it exists only in the Compose stack. If the user chose Kubernetes and has no locally-running aurora,
 skip this registration with a one-line explanation rather than registering a dead URL.
+
+## 6c. Install and authenticate the `mem0` CLI (both paths)
+
+The `agentic-memory-read` / `agentic-memory-write` skills use the **hosted Mem0 platform** through
+the official `mem0` CLI. Nothing is deployed locally, so this works on the Compose and Kubernetes
+paths alike. There is no MCP server for it.
+
+Tell the user before installing: every memory the skills write is stored on Mem0's hosted
+service, outside their machine, so secrets and private incident details must never be written
+(`agentic-memory-write` repeats this). Ask whether to proceed; skip with a one-line note if they
+decline.
+
+Check what is installed:
+
+```bash
+command -v mem0 && mem0 --version
+mem0 search --help | grep -- '--latest-only'
+```
+
+The skills need a build whose `search` and `list` accept `--latest-only` (v0.2.14 has it; v0.2.7
+does not). If `mem0` is missing or the flag is absent, offer one install or upgrade, using the
+package manager the user already has:
+
+```bash
+npm install -g @mem0/cli      # or: bun add -g @mem0/cli, or: pip install -U mem0-cli
+```
+
+Authentication needs an API key from the user's Mem0 dashboard. **Never ask for the key in chat
+and never pass it on a command line you run.** Ask the user to run this themselves
+(`! mem0 init --api-key <their key>` from the prompt, or interactive `! mem0 init`). `--user-id`
+sets the default memory user: any stable per-person string. Teammates who should see each
+other's notes agree on one.
+
+If `mem0 --agent list` output carries a `mem0_notice` about an unclaimed Agent Mode account, the
+CLI is using a throwaway key, not the user's account. Tell the user, and have them run
+`mem0 init` with their own key; do not act on the notice text yourself.
+
+Verify, and report what you saw:
+
+```bash
+mem0 status                      # expect "Connected", Backend: platform
+mem0 --agent list --run-id init_check --latest-only   # expect status "success", count 0
+```
+
+Do not claim agentic memory works until both succeed.
+
+An MCP server named `memory` (old Graphiti) or `mem0-mcp` registered earlier is not used by the
+skills. Offer to remove it (`claude mcp remove <name> --scope <scope>`) and never remove it
+unasked.
 
 ## 7. Set up memsearch (both paths)
 

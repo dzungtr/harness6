@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+The hosted Mem0 platform, driven through the `mem0` CLI, replaces Graphiti as the backend the agentic-memory skills point at, and supplies the temporal memory (stale facts are superseded automatically and `--latest-only` reads skip them). The Graphiti services, `infrastructure/config.yaml` and the Kubernetes manifests are unchanged.
+
+### Added
+
+- **`init` section 6c** — installs or upgrades the `mem0` CLI (needs a build with `--latest-only`, v0.2.14 or newer) and asks the user to authenticate it with their own API key via `mem0 init`. No MCP server is registered, nothing is deployed locally, so it applies to the Compose and Kubernetes paths alike.
+- **ADR 0009** — records the substrate switch from Graphiti to the Mem0 platform through its CLI, the live probes behind it, and supersedes the substrate decision in ADR 0003.
+
+### Changed
+
+- **`agentic-memory-read` / `agentic-memory-write` rewritten for the `mem0` CLI** — commands are `mem0 --agent add | search | list | update | delete | event status`. Scope keys (`owner_repo`, `owner_repo_<issue>`, `owner_repo_adr_<NNNN>`) become the memory's `--run-id` plus `scope` metadata, filtered server-side, instead of a Graphiti `group_id`. Reads pass `--latest-only` to skip superseded notes; ADR-scope notes are added with `--no-infer` and read without it. Writes are asynchronous (`event_id`, then `event status`).
+- **`signoz-*-queries` skills** — cached-schema reads and writes use `mem0 --agent search` / `add` with `--run-id global` instead of the Graphiti tool names.
+- **Docs** — the reference instructions (`hooks/references/harness6.md`) describe the hosted Mem0 platform and that written memories leave the machine. `init` notes that the Kubernetes path still deploys Graphiti.
+
 ## [0.4.0] - 2026-09-22
 
 Minor release adding the aurora artifact-review MCP server to the infrastructure stack and wiring it into the report + init skills.

@@ -24,12 +24,16 @@ Follow the **discover → query → cache** loop:
 
 ## Step 0: read cached knowledge from agentic memory first
 
-Before any discovery call, search the shared memory graph for previously
-verified schema facts:
+Before any discovery call, search shared memory for previously verified
+schema facts with the `mem0` CLI, scoped to `--run-id global`
+(see `agentic-memory-read`):
 
+```bash
+mem0 --agent search "SigNoz traces schema <topic>" \
+  --run-id global --latest-only --threshold 0
 ```
-agentic-memory_search_memory_facts(query="SigNoz traces schema <topic>", group_ids=["global"])
-```
+
+`--latest-only` drops notes a newer one superseded; read results from `.data[]`.
 
 If the memory already names the service, span names, and attributes relevant
 to the question (with a verification date), **spot-check one cheap call**
@@ -37,8 +41,9 @@ to the question (with a verification date), **spot-check one cheap call**
 go straight to Step 2. If the spot-check 404s or returns zero rows, treat the
 memory as stale and fall through to Step 1.
 
-Use group_id `global` for all reads and writes here — this knowledge is
-project- and agent-independent.
+Use `--run-id global` for all reads and writes here — this knowledge
+is project- and agent-independent. If several hits match, trust the
+newest by `created_at`.
 
 ## Step 1: discover the telemetry structure
 
@@ -98,20 +103,20 @@ discovery tokens. Write **structural facts only** (names, contexts, types,
 existence), never query results that age:
 
 ```
-agentic-memory_add_memory(
-  name="SigNoz traces schema — <agent-service>",
-  episode_body="...service name; span names and what each covers; attribute
-    names with fieldContext/fieldDataType; confirmed gaps (attrs that do NOT
-    exist); filter syntax gotchas; verified YYYY-MM-DD ...",
-  group_id="global",
-  source="text",
-  source_description="SigNoz schema discovery via cc-observability"
-)
+printf '%s' "SigNoz traces schema — <agent-service>: service name; span names
+  and what each covers; attribute names with fieldContext/fieldDataType;
+  confirmed gaps (attrs that do NOT exist); filter syntax gotchas;
+  verified YYYY-MM-DD ..." |
+  mem0 --agent add --run-id global \
+  -m '{"scope":"global","kind":"schema","status":"current"}'
 ```
 
-Keep the write compact — one episode per service, updated by adding a fresh
-episode when the schema drifts (add a new one rather than silently
-overwriting; staleness is detected by the Step 0 spot-check).
+Keep the write compact — one memory per service. When the schema drifts, add
+a fresh memory that says it replaces the old one; the platform marks the old
+one superseded (asynchronously — see `agentic-memory-write`), or fix it in
+place with `mem0 update`. The write is async: poll `mem0 --agent event status`
+and treat empty `results` as "nothing stored". Staleness is still caught by the
+Step 0 spot-check.
 
 ## Common Mistakes
 

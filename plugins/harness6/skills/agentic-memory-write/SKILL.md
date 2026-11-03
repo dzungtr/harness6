@@ -4,168 +4,111 @@ description: >
   Use whenever you hit a blocker, discover drift between ticket intent and delivered result,
   reach a stopping point (session end, context-limit handoff, done-pending-verification),
   silently descope something, or resolve a previously-noted blocker/drift, to persist that
-  ambient progress-state for the next cold start. Backed by a remote Graphiti temporal
-  knowledge graph via the `memory` MCP server. Event-driven — not continuous per-step logging,
-  not session-end-only.
+  ambient progress-state for the next cold start. Backed by the hosted Mem0 platform, written
+  through the `mem0` CLI. Event-driven, not per-step logging and not session-end-only.
 ---
 
-# agentic-memory-write (Graphiti)
+# agentic-memory-write (Mem0 platform, `mem0` CLI)
 
-Persists **ambient progress-state** — a standup note to the next developer — so a later cold
-start (yours or someone else's) can pick up smoothly. This is not a decision log: no
-`Decision`/`Outcome` typed shape, no schema file. Backed by the same self-hosted Graphiti +
-FalkorDB stack as `agentic-memory-read`, exposed as the `memory` MCP server.
+Persists **ambient progress-state**, a standup note to the next developer. Not a decision log:
+no typed `Decision`/`Outcome` shape. Decision record:
+`docs/adr/0009-mem0-agentic-memory-substrate.md`. Read counterpart: `agentic-memory-read`
+(load context there first if you have not this session; it also defines the scope key and the
+`--agent` / `mem0_notice` rules).
 
-Tool names and signatures below are **verified against the live upstream source**
-(`getzep/graphiti`, `mcp_server/src/graphiti_mcp_server.py`, main branch, checked
-2026-07-10) — keep them accurate, don't invent params.
+## When to write
 
-## When to write (event-driven, not continuous)
+Only at these events:
 
-Write at these events only — not on every step, and not only at session end:
+- **Blocker:** stuck on a dependency, access, or failing infra.
+- **Drift:** delivered work does not fully match ticket intent.
+- **Stopping point:** session end, context-limit handoff, or done pending human verification.
+- **Silent descope:** you dropped or deferred part of the ask without the ticket saying so.
+- **Resolution:** a noted blocker or drift is cleared. First-class, see below.
+- **ADR amended:** its `## Decision` or `## Considered Options` changed. Record the rationale
+  kept out of the ADR file: what was believed, what changed it (evidence, incident, PR), why the
+  new decision is right.
 
-- **Blocker** — you're stuck (external dependency, missing access, failing infra, etc.).
-- **Drift** — what you delivered doesn't fully match ticket intent (partial completion, an
-  interpretation that diverged, etc.).
-- **Stopping point** — session end, context-limit handoff, or "done pending human
-  verification."
-- **Silent descope** — you quietly dropped or deferred part of the ask without it being
-  reflected in the ticket.
-- **Resolution** — a previously-noted blocker or drift is now cleared. This is a first-class
-  event, not an afterthought — see "Resolution as event" below.
-- **ADR amended** — an ADR's `## Decision` or `## Considered Options` section changed. Write
-  the full rationale deliberately kept OUT of the ADR file itself: what was believed before,
-  what changed it (evidence, incident, PR), and why the new decision is correct. See "ADR
-  scope" below — this is still standup-prose, not a typed shape.
+## Content
 
-## Content model: standup prose, coverage not schema
+Third-person standup prose that lets the next reader answer what applies of: where it stands,
+what the catch is, where to pick up (branch, PR, file, next step). Name the ticket or PR. If the
+event happened on another day, say when. Include only what is relevant.
 
-Don't force a rigid field template. Write natural prose that lets the next reader answer, for
-whatever applies:
+> Ticket #142: about 78% done. Core migration works and is tested. The archived-records backfill
+> needs a schema change I did not want to make unreviewed, so it is left out. Keep the ticket
+> open or file a follow-up. Code is on `feat/142-migration`, PR #150 (draft).
 
-- **Where does it stand** — what's actually done vs. ticket intent.
-- **What's the catch** — the blocker, drift, or gotcha, if any.
-- **Where to pick up** — branch, PR, file, or next concrete step.
+## Scope
 
-Include only what's relevant — a pure blocker note doesn't need a full "where it stands"
-essay; a clean resolution doesn't need to restate the whole ticket.
+Write to the most specific scope, as the memory's `--run-id`:
 
-### Examples (deliberately different shapes)
+- On a ticket: `owner_repo_<issue>`.
+- Cross-ticket note for a whole epic: the epic's `owner_repo_<epic>`. Never put single-ticket
+  notes there.
+- No issue: `owner_repo`.
+- ADR amendment: `owner_repo_adr_<NNNN>`.
 
-**Blocker:**
+Normalization is defined in `agentic-memory-read` ("Scope key"); keep the two identical.
 
-> Ticket #78: implementation done, but can't verify against staging — staging API is
-> returning 500s on the endpoint this depends on. Not our bug; filed with infra. Picking back
-> up once staging is healthy again.
+## Call
 
-**Drift at a stopping point:**
+Pass the text on stdin so quotes and newlines in the prose cannot break the shell:
 
-> Ticket #142: ~78% done — the core migration path works and is tested. The remaining 22%
-> (backfill for archived records) turned out to need a schema change I didn't want to make
-> unreviewed, so I left it out. Ticket should probably stay open or get a follow-up filed;
-> code is on `feat/142-migration`, PR #150 (draft).
+```bash
+printf '%s' "<prose>" | mem0 --agent add \
+  --run-id "<scope key>" \
+  -m '{"scope":"<scope key>","kind":"<blocker|drift|stopping-point|descope|resolution|adr-amendment>","status":"<open|resolved|current>"}'
+```
 
-**Silent descope / gotcha:**
-
-> Ticket #96: shipped without the CSV export the ticket mentions — the existing export lib
-> doesn't support the requested column set, and adding that felt out of scope for this
-> ticket. Didn't call this out in the PR description; flagging here in case someone expects
-> it.
-
-## Write scope
-
-Write to your **most-specific** scope:
-
-- On a ticket → `owner_repo_<issue>` (that ticket).
-- Genuinely cross-ticket note (affects the whole epic, not one child) → the epic scope,
-  `owner_repo_<epic>`.
-- Orphan/ad-hoc work with no issue → project scope, `owner_repo`.
-- Amending an ADR → the ADR scope, `owner_repo_adr_<NNNN>`, derived from the ADR filename
-  (`docs/adr/NNNN-slug.md`) plus the git remote, using the same joining rule as above.
-  Example: `dzungtr/harness6` + ADR 0003 → `dzungtr_harness6_adr_0003`. This scope sits
-  **outside** the GitHub work hierarchy the other three keys are built on — see "ADR scope"
-  below.
-
-`group_id` must be underscore-joined, not slash/hash-joined and not dash-joined either.
-Normalize **every component** before joining: replace any `-`, `.`, `#`, or whitespace inside
-the owner/repo names with `_`, then lowercase — e.g. `acme-org/payments-service` →
-`acme_org_payments_service`. The final `group_id` must contain no character other than
-`[a-z0-9_]` plus `<issue>`/`<NNNN>` digits. This matches the project rule "repo `my-repo`
-→ `my_repo`" and `agentic-memory-read`'s "Scope resolution" — keep them identical.
-Slash/hash-joining makes FalkorDB's RediSearch full-text index throw `RediSearch: Syntax
-error at offset 17` on group_ids containing `/` or `#` (confirmed 2026-07-14). A
-first fix moved to dash-joining, but that same day, live testing found dash-joined group_ids
-trip the same class of RediSearch error and hang the write indefinitely instead of failing
-cleanly — reproduced on `tillpos-tony-my-claude`, which never completed (`count(n)` stuck at 0
-for 5+ minutes). Underscore-joined (`tillpos_tony_my_claude_test`) completed cleanly with zero
-RediSearch errors, so underscore is the verified-safe separator, not just another guess. See
-`agentic-memory-read`'s "Scope resolution" section for the full verification detail; keep the
-two skills' conventions identical.
-
-Don't write epic-level notes for single-ticket concerns — that breaks read-wide/write-narrow
-and pollutes every sibling ticket's epic-level read.
+- Omit `--user-id` (the CLI default). Always set `--run-id` and `scope` in the metadata; there
+  is no default scope.
+- **The write is async.** `.data[0]` is `{"status": "PENDING", "event_id": "..."}`. Poll
+  `mem0 --agent event status <event_id>` until `.data.status` is `SUCCEEDED` (a few seconds),
+  then read `.data.results` (each has `id`, `data.memory`, `event`). `FAILED` carries an error.
+  **Empty `results` after success means the extractor stored nothing:** rephrase more
+  concretely, retry once, then tell the human.
+- After your first write in a session, confirm with
+  `mem0 --agent list --run-id "<scope key>"` that `run_id` and metadata landed as intended.
 
 ## Resolution as event
 
-When a blocker clears or drifted work gets finished, write a new episode that **names what it
-resolves**, e.g.:
+When a blocker clears, write a new memory that **names what it resolves** and says it is no
+longer true, with `kind: resolution`, `status: resolved`:
 
-> Blocker on #78 noted 2026-07-09 is cleared: staging was misconfigured (wrong env var),
-> infra fixed it. Verified against staging now, all green.
+```bash
+printf '%s' "Ticket #78 blocker resolved: the staging API 500s were a wrong env var, infra fixed it, verification against staging passes, so #78 is no longer blocked." |
+  mem0 --agent add --run-id owner_repo_78 \
+  -m '{"scope":"owner_repo_78","kind":"resolution","status":"resolved"}'
+```
 
-Naming the prior state explicitly gives Graphiti's bi-temporal extraction what it needs to
-recognize the contradiction and age out (invalidate, not delete) the stale note — don't rely
-on a terse "fixed" with no reference to what it fixes.
+Mem0 then marks the contradicted note superseded, and `mem0 search/list --latest-only` stops
+returning it. Verified with CLI v0.2.14. The pass is a model judgement, asynchronous, and not
+guaranteed, so the wording is what lets it match, and what readers fall back on. Never write a
+terse "fixed".
+
+## One note, not a new event
+
+- **Correct in place:** `mem0 update <id> "<new text>" -m '{...}'` (metadata). For fixing a
+  detail or status only; a new event is a new memory so history stays.
+- **Remove one:** `mem0 delete <id>`, only after the human confirms the exact id. Prefer
+  superseding.
+- **Wipe a scope:** `mem0 delete --all --run-id "<scope key>" --force`, only with a `run_id` you
+  mean to wipe and after the human confirms. List it first (`mem0 --agent list --run-id ...`);
+  do not rely on `--dry-run`. **Never** use `--project` or `--all` without `--run-id`: that
+  erases memory across every project.
 
 ## ADR scope
 
-Episode naming follows the same convention as any other write, e.g. `"Amendment: ADR-0003
-group_id normalization fix"`. The episode body is still standup-prose — where it stood,
-what changed it, why the new decision is correct — never a typed `Decision`/`Outcome`/
-`SUPERSEDES` shape.
-
-ADR-scope episodes are not ticket-scoped: unlike the other three scopes, never reconcile them
-against a GitHub issue's open/closed status (there usually isn't one), and never age them out.
-Amendment history is durable by design — it's the whole reason this trigger exists — so the
-"Resolution as event" aging-out mechanism above doesn't apply here.
-
-## `add_memory` call
-
-- `name`: a short episode title, e.g. `"Blocker: #78 staging 500s"` or `"Resolved: #78
-  staging blocker"`.
-- `group_id`: the single, explicit resolved scope (see "Write scope" above) — never rely on
-  the server's configured default (`GRAPHITI_GROUP_ID`, `main`).
-- `reference_time`: ISO-8601 (e.g. `2026-07-11T14:30:00Z`) — when the event actually
-  happened, not just when you happened to write it.
-- `episode_body`: the prose note itself (see examples above).
-- `source`: `"text"` (default) unless feeding structured JSON, in which case `"json"` with a
-  properly-escaped JSON string.
-
-## Other write/delete tools
-
-- `delete_episode(uuid=...)` / `delete_entity_edge(uuid=...)`: remove a mistaken write.
-  Cascade behavior is scoped to what that episode/edge solely created — check the tool's own
-  docstring before relying on it for a large mistake.
+ADR-scope notes are durable history. Never reconcile them against a GitHub issue and never treat
+them as resolved. Add them with `--no-infer` (stored as written, no extraction), and read them
+without `--latest-only`, so a later amendment cannot hide an earlier one.
 
 ## Rules
 
-- Memory is **non-authoritative** and never substitutes for ticket/ADR hygiene: if a fact
-  should update or close the ticket, update the ticket; a real architectural decision still
-  goes to an ADR. Memory is the tacit catch-net for what falls between those — the small
-  stuff that evaporates today.
-- Never store secrets, tokens, or credentials in memory episodes.
-- Event-driven: not continuous (don't log every step) and not session-end-only (write
-  blockers/drift/resolutions as they happen).
-
-## Loading context first
-
-If you haven't already loaded progress-state for this scope this session, use the
-`agentic-memory-read` skill first.
-
-## Relationship to file-based memory
-
-If the current work is scoped to a GitHub issue/PR (not ad-hoc/no-ticket work), prefer this
-skill over writing to the generic per-project `memory/*.md` auto-memory files for
-progress-state, blockers, or drift. Those files are for durable facts about the user, project,
-or feedback that outlive a single ticket; this skill is the ticket-scoped ambient catch-net —
-use it whenever a stopping point, blocker, drift, or resolution falls inside a ticket's scope.
+- Memory is **non-authoritative**. If a fact should update or close a ticket, update the ticket;
+  a real architectural decision goes in an ADR.
+- **Everything written is stored on Mem0's hosted service.** Never store secrets, tokens,
+  credentials, customer data or private incident details.
+- Never put a secret on the command line (`--api-key`); the CLI reads its saved config.
+- For ticket-scoped work, prefer this skill over the generic `memory/*.md` auto-memory files.
