@@ -42,13 +42,16 @@ jq -r '.memory.group_id // empty' "$REPO_ROOT/.harness6.json" 2>/dev/null
 - **Pass it explicitly on every call** (`group_ids=[<group>]` on reads, `group_id=<group>` on
   writes). A call without it silently uses the server default group `main`, which holds
   nothing — reads come back empty and writes are stranded.
-- **File missing or `group_id` empty** — use the default `init` would propose: the git remote
-  owner, lowercased, with every character outside `[a-z0-9]` replaced by `_`
-  (`acme-org/payments-service` → `acme_org`). Tell the user to run the `init` skill to pin it;
-  don't create the file yourself.
+- **File missing or `group_id` empty** — make no `memory` call. Ask the user to create the
+  file by running the `init` skill's section 8 ("Record this repository's harness6
+  metadata"), which proposes a group and lets them choose. Continue the memory read once the
+  file exists. Don't guess a group and don't write the file yourself: a guessed group splits
+  the repo's memory across two graphs. If the user declines, carry on with the task without
+  memory and say so.
 - A `group_id` contains only `[a-z0-9_]`.
 
-Several repos normally share one group (the `init` default is per owner, not per repo), so
+Several repos normally share one group (the `init` default is the git remote owner, not the
+repo), so
 entities and facts are deduplicated and invalidated across every ticket and repo in it.
 `global` is a separate group reserved for the `signoz-*-queries` skills' telemetry-schema
 notes.
@@ -99,7 +102,8 @@ group_ids=[<group>])` and pass that node's uuid as `center_node_uuid`.
 ### Memory written before `.harness6.json` existed
 
 Earlier versions wrote one group per ticket: `<owner>_<repo>_<issue>`, `<owner>_<repo>`, and
-`<owner>_<repo>_adr_<NNNN>`, each component normalized like the default above. Those episodes
+`<owner>_<repo>_adr_<NNNN>`, each component lowercased with every character outside
+`[a-z0-9]` replaced by `_`. Those episodes
 are not in the shared group. When a ticket or ADR that predates the switch returns nothing,
 query its old group once with `get_episodes` before concluding there is no history.
 

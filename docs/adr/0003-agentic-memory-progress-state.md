@@ -53,7 +53,8 @@ Concretely:
    repos under one owner share a group unless the user chooses otherwise. Graphiti deduplicates
    entities and invalidates facts only within a group, so the group is the boundary of shared
    knowledge, not a ticket key. Every read and write passes the group explicitly; the server
-   default group (`main`) is never used.
+   default group (`main`) is never used. When the file is absent the skills make no memory call
+   and ask the user to run `init`, rather than guessing a group.
 4. **Ticket identity lives in the data.** A ticket or epic is referenced as `<repo>#<issue>`, an
    ADR as `<repo> ADR <NNNN>`. The reference opens the episode `name`, is repeated in
    `source_description` (`repo=… issue=… kind=…`), and is named in the body's first sentence so
