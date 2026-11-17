@@ -114,15 +114,6 @@ results as they come; there is nothing to filter out.
   `search_nodes(query="<repo>#<issue>", group_ids=[<group>])` and pass that node's uuid as
   `center_node_uuid` to the term searches.
 
-### Memory written before `.harness6.json` existed
-
-Earlier versions wrote one group per ticket: `<owner>_<repo>_<issue>`, or `<owner>_<repo>`
-for work with no issue, each component lowercased with every character outside
-`[a-z0-9]` replaced by `_`. Those episodes
-are not in the shared group. When a ticket that predates the switch returns nothing, repeat
-the reference search once with `group_ids=[<old group>]` before concluding there is no
-history.
-
 ## Read-time reconciliation
 
 Memory is not authoritative — cross-check against live GitHub state before trusting a note:

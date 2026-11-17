@@ -90,7 +90,7 @@ Concretely:
 - Any future consumer of this memory layer reads the group from `.harness6.json` and identifies
   tickets by the `<repo>#<issue>` reference, not by a `group_id` it derives itself.
 - Episodes written under per-ticket groups stay in those groups until migrated; the read skill
-  checks the old group when a ticket that predates the change returns nothing.
+  does not query them.
 
 ## Considered Options
 
