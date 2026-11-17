@@ -2,7 +2,7 @@
 
 ## [0.4.4] - 2026-11-17
 
-Patch release upgrading the Graphiti memory MCP server from `1.0.2` to `1.1.3` (graphiti-core `0.28.2` → `0.31.2`) and bringing the memory skills in line with its tool signatures.
+Patch release upgrading the Graphiti memory MCP server from `1.0.2` to `1.1.3` (graphiti-core `0.28.2` → `0.31.2`), bringing the memory skills in line with its tool signatures, and replacing per-ticket memory groups with one group per repository.
 
 ### Changed
 
@@ -10,6 +10,9 @@ Patch release upgrading the Graphiti memory MCP server from `1.0.2` to `1.1.3` (
 - **Extraction path for non-OpenAI endpoints** — any `OPENAI_API_URL` other than `api.openai.com` / `openai.azure.com` is now served by graphiti-core's `OpenAIGenericClient` (Chat Completions with a structured-output request) instead of `OpenAIClient`. New `LLM_STRUCTURED_OUTPUT_MODE` (`json_schema` default, `json_object` fallback) is wired through `config.yaml`, compose, and `.env.example`.
 - **`agentic-memory-read`** — documents the new `search_memory_facts` temporal filters (`valid_at_after` / `valid_at_before` / `invalid_at_after` / `invalid_at_before`), including that no bound can select currently-valid facts; adds `get_episode_entities` for provenance and `search_nodes`' `center_node_uuid`.
 - **`agentic-memory-write`** — `reference_time` is now a real `add_memory` parameter (it was not in the `1.0.2` signature); delete tools take `group_id`; the new `add_triplet` / saga / community tools are named as out of scope for progress-state.
+
+- **Memory scope rule: one group per repo, from `.harness6.json`** — `agentic-memory-read` / `agentic-memory-write` no longer derive a `group_id` per ticket (`owner_repo_<issue>`). They read one `group_id` from a git-ignored `.harness6.json` at the root of the repo's main worktree, and identify the ticket inside the data: episode `name` prefix `<repo>#<issue>`, `source_description` `repo=… issue=… kind=…`, and the body's first sentence. ADR 0003 amended. Existing episodes are **not migrated**; the read skill checks the old per-ticket group when a ticket that predates the change returns nothing.
+- **`init` section 8** — per-repo step that proposes the normalized git remote owner as the `group_id`, lets the user override it, writes `.harness6.json`, and ignores it through `.git/info/exclude`.
 
 ### Fixed
 

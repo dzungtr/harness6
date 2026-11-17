@@ -78,8 +78,8 @@ dead idea, and it has to survive being retrieved on its own.
 One row per amendment, each a terse factual statement of what changed and why — no prose
 narrative. The header stays `**Status:**` + `**Date:**` only. Do **not** add `Amended:` or
 `History:` header lines: the dates and PRs already live in the table, so a header copy is a
-second place to drift, and the memory scope key below is derived rather than stored, so
-hardcoding it breaks on repo rename and repeats boilerplate across every ADR.
+second place to drift, and the memory reference below is derived from the filename, so
+hardcoding it repeats boilerplate across every ADR.
 
 The presence of `## Amendments` is itself the signal that expandable history exists. An ADR
 that has never been amended has no such section.
@@ -87,9 +87,9 @@ that has never been amended has no such section.
 ### Where the full rationale lives
 
 The reasoning deliberately kept out of the file — what was believed before, what changed it,
-why the new decision is correct — goes to temporal memory under the ADR scope,
-`owner_repo_adr_<NNNN>`, derived from the ADR filename plus the git remote. See the
-`agentic-memory-write` skill's "ADR amended" trigger.
+why the new decision is correct — goes to temporal memory as an episode referenced
+`<repo> ADR <NNNN>`, in the repo's memory group. See the `agentic-memory-write` skill's
+"ADR amended" trigger.
 
 Authoritative fallback when that store is empty or unavailable:
 `git log -p -- docs/adr/NNNN-*.md` and `gh pr view <n>`.
