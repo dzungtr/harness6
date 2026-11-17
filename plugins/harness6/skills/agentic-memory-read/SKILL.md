@@ -61,9 +61,9 @@ notes.
 The group says nothing about which ticket a note belongs to. That is carried by the episode
 itself (written by `agentic-memory-write`):
 
-- **Reference** — `<repo>#<issue>` for a ticket or epic (`payments-service#424`), `<repo> ADR
-  <NNNN>` for an ADR, bare `<repo>` for work with no issue. `<repo>` is the repository name
-  as GitHub shows it, without the owner.
+- **Reference** — `<repo>#<issue>` for a ticket or epic (`payments-service#424`), bare
+  `<repo>` for work with no issue. `<repo>` is the repository name as GitHub shows it,
+  without the owner.
 - Episode `name` starts with the reference; `source_description` repeats it as
   `repo=<owner/repo> issue=<n> kind=<kind>`; the body names it in its first sentence, so
   extracted facts carry it too.
@@ -73,39 +73,55 @@ from the branch's open PR. A PR number is not an issue number — don't use it a
 
 ## Read model
 
-All reads go to the one group; the reference narrows them.
+All reads are fact searches against the one group. A cold start runs two kinds — by reference and
+by search term — because a note filed under another ticket or repo is found only by what it
+is about.
 
-1. **Ticket cold-start** (the common case):
-   `search_memory_facts(query="<repo>#<issue> <topic>", group_ids=[<group>])`, then
-   `get_episodes(group_ids=[<group>], max_episodes=30)` and keep the episodes whose `name`
-   starts with `<repo>#<issue>`.
-2. **Epic cold-start**: list the child issues live via `gh`, then run the ticket fact search
-   once for the epic and once per child with a small `max_facts` — a bounded per-child
-   summary of status, open blockers, and open drift. Read a child's episodes only when you
-   descend into working it.
-3. **Project cold-start** (no specific issue): `get_episodes(group_ids=[<group>],
-   max_episodes=20)` and keep the names starting with `<repo>`; that is the recent activity
-   across the repo's tickets.
-4. **ADR read** (the ADR has an `## Amendments` section): `search_memory_facts(query="<repo>
-   ADR <NNNN>", group_ids=[<group>])` before acting on, or re-amending, that ADR. An ADR
-   without that section has no history in memory.
-5. **Rejected-option check** (you're about to propose something an ADR's
-   `## Considered Options` marks rejected): run the ADR read first — the ADR body carries
-   only the terse prohibition and its evidence.
+### 1. Build the search-term list
 
-`get_episodes` has no name filter and returns only the newest `max_episodes` of the whole
-group, so an older ticket's episodes fall outside the window. Facts have no such window: when
-the episode read finds nothing for a ticket, the fact search is the read. To tighten a fact
-search around one ticket, find its entity with `search_nodes(query="<repo>#<issue>",
-group_ids=[<group>])` and pass that node's uuid as `center_node_uuid`.
+Before the first call, list what this task touches. Take the terms from the task brief, the
+issue body, and the files or diff in play:
+
+- components, services, and modules (`checkout-api`, `karpenter node pool`)
+- tools, platforms, and environments (`argocd`, `staging cluster`)
+- error strings and symptoms, quoted as they appear (`RediSearch syntax error`)
+- domain concepts and decisions (`group_id normalization`, `approval group membership`)
+
+Keep each term a specific noun phrase of two to five words — the search matches fact text by
+keyword and by embedding, so `r6a.large vCPU memory ratio` finds what `instance sizing`
+buries. Aim for three to six terms; drop any that only restate the ticket title.
+
+### 2. Run the searches
+
+Issue these in one batch:
+
+- **Reference** — `search_memory_facts(query="<repo>#<issue>", group_ids=[<group>])`.
+- **Each term** — `search_memory_facts(query="<term>", group_ids=[<group>], max_facts=5)`,
+  one call per term, without the reference in the query so other tickets' facts can match.
+
+Merge the results by fact `uuid`. A fact returned by a term search and not by the reference
+search came from other work: read it as background on the topic, not as this ticket's state.
+
+Every fact returned is valid at query time — the server drops superseded facts — so use the
+results as they come; there is nothing to filter out.
+
+### Variations
+
+- **Epic cold-start**: list the child issues live via `gh`, then run the reference search
+  once for the epic and once per child with `max_facts=5` — a bounded per-child summary. Run
+  the term searches once for the epic, not per child.
+- **Tighter ranking around one ticket**: find its entity with
+  `search_nodes(query="<repo>#<issue>", group_ids=[<group>])` and pass that node's uuid as
+  `center_node_uuid` to the term searches.
 
 ### Memory written before `.harness6.json` existed
 
-Earlier versions wrote one group per ticket: `<owner>_<repo>_<issue>`, `<owner>_<repo>`, and
-`<owner>_<repo>_adr_<NNNN>`, each component lowercased with every character outside
+Earlier versions wrote one group per ticket: `<owner>_<repo>_<issue>`, or `<owner>_<repo>`
+for work with no issue, each component lowercased with every character outside
 `[a-z0-9]` replaced by `_`. Those episodes
-are not in the shared group. When a ticket or ADR that predates the switch returns nothing,
-query its old group once with `get_episodes` before concluding there is no history.
+are not in the shared group. When a ticket that predates the switch returns nothing, repeat
+the reference search once with `group_ids=[<old group>]` before concluding there is no
+history.
 
 ## Read-time reconciliation
 
@@ -119,30 +135,30 @@ Memory is not authoritative — cross-check against live GitHub state before tru
 
 ## Tools
 
-Primary read is **ticket reference + recency**, not open-ended semantic search:
-
-- `get_episodes(group_ids=[...], max_episodes=<n>)`: the most recent raw episodes of the
-  group, newest first (default 10).
-- `search_memory_facts(query=<topic>, group_ids=[...], max_facts=<n>)`: search over extracted
-  facts (edges) when you need something more targeted than "most recent." Each fact carries
-  `valid_at` / `invalid_at`; see "Temporal filters" below.
-- `search_nodes(query=<topic>, group_ids=[...], entity_types=[...])`: SECONDARY — semantic
-  entity search. Use when reference+recency reads don't surface what you need, not as the first
-  call. `center_node_uuid=<uuid>` ranks results by graph distance to a known entity;
-  `search_memory_facts` accepts it too.
+- `search_memory_facts(query=<text>, group_ids=[...], max_facts=<n>)`: the primary read.
+  Matches `query` against fact text two ways — keyword (BM25) and embedding similarity —
+  merges the two rankings, and returns the top `max_facts` (default 10). Each fact carries
+  `fact`, `name`, `valid_at`, `invalid_at`, and the `episodes` uuids it came from. It makes
+  one embedding request and no LLM call, so several searches in a batch are cheap.
+  `center_node_uuid=<uuid>` re-ranks by graph distance to that entity.
+- `search_nodes(query=<topic>, group_ids=[...], entity_types=[...])`: SECONDARY — entity
+  search. Use it to find an entity's uuid for `center_node_uuid`, not as the first call.
 - `get_episode_entities(episode_uuids=[...], group_id=<group>)`: provenance — the entities and
-  facts a given episode produced. Use to check what a note actually asserted before trusting
-  a fact that looks stale.
+  facts a given episode produced.
 - `get_status()`: confirm the server + database connection are healthy before assuming a read
-  silently failed (or returned stale/empty results).
+  silently failed (or returned empty results).
 
 `group_ids` accepts a single string or a list. `get_episode_entities` takes a singular
 `group_id`; omitting it falls back to the server default (`main`), so always pass the group.
 
-### Temporal filters on `search_memory_facts`
+### Validity and history on `search_memory_facts`
 
-Four optional ISO-8601 bounds (timezone-naive is read as UTC; a malformed value returns
-`Invalid date filter` instead of results):
+By default the search returns **only facts valid at query time**: not superseded, and with no
+end date in the past. This stack enforces that in the server
+(`infrastructure/graphiti/type_config.py`), so pass no time parameter for a normal read.
+
+The four optional ISO-8601 bounds are for history questions only (timezone-naive is read as
+UTC; a malformed value returns `Invalid date filter`):
 
 | Param | Keeps facts whose |
 | --- | --- |
@@ -151,19 +167,14 @@ Four optional ISO-8601 bounds (timezone-naive is read as UTC; a malformed value 
 | `invalid_at_after` | `invalid_at` ≥ bound — were superseded at or after this time |
 | `invalid_at_before` | `invalid_at` ≤ bound — were superseded at or before this time |
 
-- **What changed since I last looked** — `valid_at_after=<last session time>`.
-- **What was resolved/superseded recently** — `invalid_at_after=<time>`; this is how a cleared
-  blocker shows up.
-- **State as of a past date** — `valid_at_before=<date>`, then drop results whose `invalid_at`
-  is earlier than that date.
+- **What changed since I last looked** — `valid_at_after=<last session time>`; still
+  current-only.
+- **What was resolved or superseded** — pass an `invalid_at_*` bound. That switches the
+  current-only default off for the call and returns the superseded facts in that range — how
+  a cleared blocker shows up.
 
-There is **no "currently valid only" filter**: the bounds are `>=`/`<=` comparisons, so they
-cannot select `invalid_at IS NULL`, and any `invalid_at_*` bound returns *only* superseded
-facts. To get current state, search without `invalid_at_*` bounds and discard results whose
-`invalid_at` is set. Facts with no `valid_at` are likewise excluded by any `valid_at_*` bound.
-
-`edge_types=[...]` also exists, but this stack configures no custom edge types
-(`infrastructure/config.yaml`), so there is nothing useful to filter on — leave it unset.
+A `valid_at_*` bound excludes facts that have no `valid_at`. `edge_types=[...]` also exists,
+but this stack configures no custom edge types, so leave it unset.
 
 ## MCP client registration
 

@@ -126,14 +126,14 @@ open PR. A PR number is not an issue number — don't use it as one.
 
 Put the reference in three places, because each feeds a different read:
 
-- **`name`** — `<reference> — <Kind>: <title>`. `agentic-memory-read` filters episodes on this
-  prefix.
+- **`name`** — `<reference> — <Kind>: <title>`, so an episode is identifiable when listed.
 - **`source_description`** — `repo=<owner/repo> issue=<n> kind=<kind>` (`adr=<NNNN>` in place
   of `issue=` for an ADR; omit `issue=` when there is none). `<kind>` is one of `blocker`,
   `drift`, `stopping-point`, `descope`, `resolved`, `gotcha`, `adr-amendment`.
 - **First sentence of `episode_body`** — name the reference in prose (`payments-service#424:
-  implementation done, but …`). Facts are extracted from the body alone, so a body that never
-  names its ticket yields facts no ticket search can find.
+  implementation done, but …`). `agentic-memory-read` reads facts, and facts are extracted
+  from the body alone, so a body that never names its ticket yields facts no ticket search can
+  find.
 
 A note about one ticket references that ticket, not its epic. Reference the epic only for
 something that genuinely affects all of its children.

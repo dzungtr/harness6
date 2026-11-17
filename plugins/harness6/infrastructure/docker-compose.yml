@@ -164,6 +164,10 @@ services:
       # bi-temporal invalidation — no custom decision schema (see docs/adr/0005).
       # database.provider is set to "neo4j" here, matching the service above.
       - ./config.yaml:/app/mcp/config/config.yaml:ro,z
+      # Makes search_memory_facts return only facts valid at query time unless
+      # the caller passes an invalid_at_* bound. See the file's header; it must
+      # be re-synced with upstream whenever the image tag above changes.
+      - ./graphiti/type_config.py:/app/mcp/src/utils/type_config.py:ro,z
     ports:
       - "${GRAPHITI_MCP_HTTP_PORT:-8121}:8000" # MCP HTTP endpoint at /mcp/
     extra_hosts:

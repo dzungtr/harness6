@@ -58,9 +58,10 @@ Concretely:
 4. **Ticket identity lives in the data.** A ticket or epic is referenced as `<repo>#<issue>`, an
    ADR as `<repo> ADR <NNNN>`. The reference opens the episode `name`, is repeated in
    `source_description` (`repo=… issue=… kind=…`), and is named in the body's first sentence so
-   extracted facts carry it. Reads narrow by reference inside the one group: a fact search on
-   the reference, plus recent episodes filtered by name prefix. An epic read runs a bounded
-   fact search per child issue enumerated live via `gh`.
+   extracted facts carry it. A read runs fact searches inside the one group — one on the
+   reference and one per search term the agent derives from the task. An epic read runs a bounded reference search per child issue
+   enumerated live via `gh`. Fact searches return only facts valid at query time; the server
+   enforces it, so readers do not filter results.
 5. **Writes are event-driven**, not continuous and not session-end-only: blocker, drift, stopping
    point, silent descope, and resolution. Content is standup-prose to the next developer —
    coverage of "where it stands / what's the catch / where to pick up," not a rigid field schema.

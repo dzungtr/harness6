@@ -60,6 +60,10 @@ spec:
             - name: config
               mountPath: /app/mcp/config
               readOnly: true
+            - name: overrides
+              mountPath: /app/mcp/src/utils/type_config.py
+              subPath: type_config.py
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /health
@@ -80,3 +84,6 @@ spec:
         - name: config
           configMap:
             name: graphiti-config
+        - name: overrides
+          configMap:
+            name: graphiti-overrides
