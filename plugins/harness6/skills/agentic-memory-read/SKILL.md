@@ -14,12 +14,13 @@ description: >
 Loads **ambient progress-state** — not prior "decisions" — so a cold-started session (yours or
 someone else's) knows where the last session left off: blockers, drift between ticket intent
 and delivered result, gotchas, and where to pick up. Backed by a self-hosted Graphiti +
-FalkorDB stack — the `graphiti-mcp` service in `infrastructure/docker-compose.yml`, with
+Neo4j stack — the `graphiti-mcp` service in `infrastructure/docker-compose.yml`, with
 entity-type schema at `infrastructure/config.yaml` — exposed as the `memory` MCP server.
 
-Tool names and signatures below are **verified against the live upstream source**
-(`getzep/graphiti`, `mcp_server/src/graphiti_mcp_server.py`, main branch, checked
-2026-07-10) — keep them accurate, don't invent params.
+Tool names and signatures below are **verified against the upstream source at the pinned
+image tag** (`getzep/graphiti`, `mcp_server/src/graphiti_mcp_server.py`, tag `mcp-v1.1.3` =
+image `zepai/knowledge-graph-mcp:1.1.3-standalone`, checked 2026-11-17) — keep them accurate,
+don't invent params.
 
 ## Scope resolution
 
@@ -40,7 +41,8 @@ projects):
 These scope keys are used directly as the Graphiti `group_id`, underscore-joined — not
 `owner/repo` or `owner/repo#<issue>`, and not dash-joined either. This convention went through
 two rounds of live verification against the `mem-graphiti-mcp` container
-(zepai/knowledge-graph-mcp, FalkorDB-backed):
+(zepai/knowledge-graph-mcp, FalkorDB-backed at the time — the stack has since moved to Neo4j,
+but the underscore convention stays so existing group_ids keep resolving):
 
 1. **2026-07-14, round 1** — slash/hash-joined group_ids (e.g. `acme-org/payments-service`
    or `acme-org/payments-service#424`) make FalkorDB's RediSearch full-text index throw
@@ -102,14 +104,48 @@ Memory is not authoritative — cross-check against live GitHub state before tru
 
 Primary read is **scope + recency**, not semantic search:
 
-- `get_episodes(group_ids=[...], last_n=<n>)`: the default read — recent raw episodes for the
-  resolved scope(s). Start here.
-- `search_memory_facts(query=<topic>, group_ids=[...])`: scope+recency search over extracted
-  facts (edges) when you need something more targeted than "most recent."
-- `search_nodes(query=<topic>, group_ids=[...])`: SECONDARY — semantic entity search. Use when
-  scope+recency reads don't surface what you need, not as the first call.
+- `get_episodes(group_ids=[...], max_episodes=<n>)`: the default read — the most recent raw
+  episodes for the resolved scope(s), newest first (default 10). Start here.
+- `search_memory_facts(query=<topic>, group_ids=[...], max_facts=<n>)`: search over extracted
+  facts (edges) when you need something more targeted than "most recent." Each fact carries
+  `valid_at` / `invalid_at`; see "Temporal filters" below.
+- `search_nodes(query=<topic>, group_ids=[...], entity_types=[...])`: SECONDARY — semantic
+  entity search. Use when scope+recency reads don't surface what you need, not as the first
+  call. `center_node_uuid=<uuid>` ranks results by graph distance to a known entity.
+- `get_episode_entities(episode_uuids=[...], group_id=<scope>)`: provenance — the entities and
+  facts a given episode produced. Use to check what a note actually asserted before trusting
+  a fact that looks stale.
 - `get_status()`: confirm the server + database connection are healthy before assuming a read
   silently failed (or returned stale/empty results).
+
+`group_ids` accepts a single string or a list. `get_episode_entities` takes a singular
+`group_id`; omitting it falls back to the server default (`main`), so always pass the scope.
+
+### Temporal filters on `search_memory_facts`
+
+Four optional ISO-8601 bounds (timezone-naive is read as UTC; a malformed value returns
+`Invalid date filter` instead of results):
+
+| Param | Keeps facts whose |
+| --- | --- |
+| `valid_at_after` | `valid_at` ≥ bound — became true at or after this time |
+| `valid_at_before` | `valid_at` ≤ bound — became true at or before this time |
+| `invalid_at_after` | `invalid_at` ≥ bound — were superseded at or after this time |
+| `invalid_at_before` | `invalid_at` ≤ bound — were superseded at or before this time |
+
+- **What changed since I last looked** — `valid_at_after=<last session time>`.
+- **What was resolved/superseded recently** — `invalid_at_after=<time>`; this is how a cleared
+  blocker shows up.
+- **State as of a past date** — `valid_at_before=<date>`, then drop results whose `invalid_at`
+  is earlier than that date.
+
+There is **no "currently valid only" filter**: the bounds are `>=`/`<=` comparisons, so they
+cannot select `invalid_at IS NULL`, and any `invalid_at_*` bound returns *only* superseded
+facts. To get current state, search without `invalid_at_*` bounds and discard results whose
+`invalid_at` is set. Facts with no `valid_at` are likewise excluded by any `valid_at_*` bound.
+
+`edge_types=[...]` also exists, but this stack configures no custom edge types
+(`infrastructure/config.yaml`), so there is nothing useful to filter on — leave it unset.
 
 ## MCP client registration
 

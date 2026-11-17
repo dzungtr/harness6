@@ -14,11 +14,12 @@ description: >
 Persists **ambient progress-state** — a standup note to the next developer — so a later cold
 start (yours or someone else's) can pick up smoothly. This is not a decision log: no
 `Decision`/`Outcome` typed shape, no schema file. Backed by the same self-hosted Graphiti +
-FalkorDB stack as `agentic-memory-read`, exposed as the `memory` MCP server.
+Neo4j stack as `agentic-memory-read`, exposed as the `memory` MCP server.
 
-Tool names and signatures below are **verified against the live upstream source**
-(`getzep/graphiti`, `mcp_server/src/graphiti_mcp_server.py`, main branch, checked
-2026-07-10) — keep them accurate, don't invent params.
+Tool names and signatures below are **verified against the upstream source at the pinned
+image tag** (`getzep/graphiti`, `mcp_server/src/graphiti_mcp_server.py`, tag `mcp-v1.1.3` =
+image `zepai/knowledge-graph-mcp:1.1.3-standalone`, checked 2026-11-17) — keep them accurate,
+don't invent params.
 
 ## When to write (event-driven, not continuous)
 
@@ -92,7 +93,7 @@ the owner/repo names with `_`, then lowercase — e.g. `acme-org/payments-servic
 `acme_org_payments_service`. The final `group_id` must contain no character other than
 `[a-z0-9_]` plus `<issue>`/`<NNNN>` digits. This matches the project rule "repo `my-repo`
 → `my_repo`" and `agentic-memory-read`'s "Scope resolution" — keep them identical.
-Slash/hash-joining makes FalkorDB's RediSearch full-text index throw `RediSearch: Syntax
+Slash/hash-joining made the then-FalkorDB backend's RediSearch full-text index throw `RediSearch: Syntax
 error at offset 17` on group_ids containing `/` or `#` (confirmed 2026-07-14). A
 first fix moved to dash-joining, but that same day, live testing found dash-joined group_ids
 trip the same class of RediSearch error and hang the write indefinitely instead of failing
@@ -136,16 +137,24 @@ Amendment history is durable by design — it's the whole reason this trigger ex
 - `group_id`: the single, explicit resolved scope (see "Write scope" above) — never rely on
   the server's configured default (`GRAPHITI_GROUP_ID`, `main`).
 - `reference_time`: ISO-8601 (e.g. `2026-07-11T14:30:00Z`) — when the event actually
-  happened, not just when you happened to write it.
+  happened, not just when you happened to write it. Timezone-naive is read as UTC; a malformed
+  value is rejected up front with `Invalid reference_time`. This is what anchors the extracted
+  facts' `valid_at`, which `agentic-memory-read`'s temporal filters query — so set it whenever
+  the event time differs from now.
 - `episode_body`: the prose note itself (see examples above).
 - `source`: `"text"` (default) unless feeding structured JSON, in which case `"json"` with a
   properly-escaped JSON string.
 
 ## Other write/delete tools
 
-- `delete_episode(uuid=...)` / `delete_entity_edge(uuid=...)`: remove a mistaken write.
-  Cascade behavior is scoped to what that episode/edge solely created — check the tool's own
-  docstring before relying on it for a large mistake.
+- `delete_episode(uuid=..., group_id=<scope>)` / `delete_entity_edge(uuid=...,
+  group_id=<scope>)`: remove a mistaken write. `delete_episode` cascades to entities and facts
+  that episode alone created; anything other episodes also support is kept.
+- `add_triplet`, `summarize_saga`, `build_communities`, and `add_memory`'s `saga` /
+  `update_communities` / `custom_extraction_instructions` params exist on the server but are
+  **not part of this workflow** — `add_triplet` bypasses episode extraction (no prose note, no
+  bi-temporal invalidation), and `build_communities` reprocesses every entity in the scope.
+  Don't reach for them to record progress-state.
 
 ## Rules
 

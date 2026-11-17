@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.4] - 2026-11-17
+
+Patch release upgrading the Graphiti memory MCP server from `1.0.2` to `1.1.3` (graphiti-core `0.28.2` → `0.31.2`) and bringing the memory skills in line with its tool signatures.
+
+### Changed
+
+- **`graphiti-mcp` image → `zepai/knowledge-graph-mcp:1.1.3-standalone`** in `infrastructure/docker-compose.yml` and `infrastructure/kubernetes/manifests/graphiti-mcp.yaml`. The image grows from ~130 MB to ~3.5 GB compressed because upstream now bundles every optional provider; the first pull is slow and needs ~10 GB free.
+- **Extraction path for non-OpenAI endpoints** — any `OPENAI_API_URL` other than `api.openai.com` / `openai.azure.com` is now served by graphiti-core's `OpenAIGenericClient` (Chat Completions with a structured-output request) instead of `OpenAIClient`. New `LLM_STRUCTURED_OUTPUT_MODE` (`json_schema` default, `json_object` fallback) is wired through `config.yaml`, compose, and `.env.example`.
+- **`agentic-memory-read`** — documents the new `search_memory_facts` temporal filters (`valid_at_after` / `valid_at_before` / `invalid_at_after` / `invalid_at_before`), including that no bound can select currently-valid facts; adds `get_episode_entities` for provenance and `search_nodes`' `center_node_uuid`.
+- **`agentic-memory-write`** — `reference_time` is now a real `add_memory` parameter (it was not in the `1.0.2` signature); delete tools take `group_id`; the new `add_triplet` / saga / community tools are named as out of scope for progress-state.
+
+### Fixed
+
+- **`get_episodes` parameter** — `agentic-memory-read` documented `last_n`, which neither `1.0.2` nor `1.1.3` accepts; the parameter is `max_episodes`.
+- **Stale backend references** — both memory skills still described the stack as FalkorDB-backed; it has been Neo4j since the durable-persistence change.
+
 ## [0.4.0] - 2026-09-22
 
 Minor release adding the aurora artifact-review MCP server to the infrastructure stack and wiring it into the report + init skills.

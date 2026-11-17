@@ -108,8 +108,12 @@ services:
   #
   # LLM extraction + embeddings call the OpenAI-compatible endpoints supplied
   # through infrastructure/.env; no model gateway runs in this stack.
+  #
+  # The 1.1.x images bundle every optional provider (incl. sentence-transformers)
+  # and are ~3.5 GB compressed, against ~130 MB for 1.0.2 — expect a long first
+  # pull and keep ~10 GB free in the container runtime's disk.
   graphiti-mcp:
-    image: zepai/knowledge-graph-mcp:1.0.2-standalone
+    image: zepai/knowledge-graph-mcp:1.1.3-standalone
     container_name: mem-graphiti-mcp
     restart: unless-stopped
     depends_on:
@@ -138,6 +142,10 @@ services:
       # NOT read the custom OPENAI_API_URL name above.
       OPENAI_BASE_URL: ${OPENAI_API_URL:?OPENAI_API_URL required (see infrastructure/.env)}
       MODEL_NAME: ${MEM_EXTRACTOR_MODEL:-claude-haiku-4-5}
+      # json_schema (default) or json_object — see llm.structured_output_mode
+      # in config.yaml. Switch to json_object if extraction returns malformed
+      # or schema-violating JSON from the configured provider.
+      LLM_STRUCTURED_OUTPUT_MODE: ${LLM_STRUCTURED_OUTPUT_MODE:-json_schema}
       EMBEDDER_MODEL: ${MEM_EMBED_MODEL:-text-embedding-3-small}
       # Embedder endpoint decoupled from the LLM endpoint above — lets
       # embeddings go to a different provider (e.g. local Ollama) than the
