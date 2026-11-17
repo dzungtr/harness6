@@ -96,7 +96,7 @@ The temptation to list files first and infer coverage from names is a known fail
 
 Graphiti memory is ambient progress-state, not a decision store: a self-service, non-authoritative catch-net so a later cold start can pick up smoothly. The `graphiti-mcp` Compose service lives in `plugins/harness6/infrastructure/docker-compose.yml`; its entity-type schema is in `plugins/harness6/infrastructure/config.yaml`, and its environment variables are in `plugins/harness6/infrastructure/.env.example`.
 
-- **Cold-start / picking up work:** before touching code, use the `agentic-memory-read` skill for the resolved scope derived from the git remote plus branch, PR, or task brief. Re-query when descending from an epic into a child ticket mid-session.
+- **Cold-start / picking up work:** before touching code, use the `agentic-memory-read` skill with the repo's memory group from `.harness6.json` and the ticket reference `<repo>#<issue>`. Re-query when descending from an epic into a child ticket mid-session.
 - **During work:** use the `agentic-memory-write` skill event-driven — on a blocker, discovered drift, stopping point, silent descope, or resolution of a previously noted blocker or drift. Write standup prose for the next developer: where the work stands, what the catch is, and where to pick up. Do not continuously log every step.
 - **Three homes:** ADR (architectural _why_) / GitHub Issues (_what_, system of record) / Memory (tacit catch-net, non-authoritative). Memory never substitutes for ticket or ADR hygiene: update the ticket when its state changes, and record real architectural decisions in ADRs.
 - Never write secrets to memory.

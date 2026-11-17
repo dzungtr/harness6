@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.4.4] - 2026-11-17
+
+Patch release upgrading the Graphiti memory MCP server from `1.0.2` to `1.1.3` (graphiti-core `0.28.2` → `0.31.2`), bringing the memory skills in line with its tool signatures, and replacing per-ticket memory groups with one group per repository.
+
+### Changed
+
+- **`graphiti-mcp` image → `zepai/knowledge-graph-mcp:1.1.3-standalone`** in `infrastructure/docker-compose.yml` and `infrastructure/kubernetes/manifests/graphiti-mcp.yaml`. The image grows from ~130 MB to ~3.5 GB compressed because upstream now bundles every optional provider; the first pull is slow and needs ~10 GB free.
+- **Extraction path for non-OpenAI endpoints** — any `OPENAI_API_URL` other than `api.openai.com` / `openai.azure.com` is now served by graphiti-core's `OpenAIGenericClient` (Chat Completions with a structured-output request) instead of `OpenAIClient`. New `LLM_STRUCTURED_OUTPUT_MODE` (`json_schema` default, `json_object` fallback) is wired through `config.yaml`, compose, and `.env.example`.
+- **Fact searches return only currently-valid facts** — `infrastructure/graphiti/type_config.py` overrides the image's copy (bind mount in compose, `graphiti-overrides` ConfigMap on Kubernetes). A `search_memory_facts` call with no `invalid_at_*` bound is restricted to facts that are not superseded and have no past end date; upstream returns superseded facts and its parameters cannot express that restriction. The override is a modified copy of the upstream file at `mcp-v1.1.3` and must be re-synced on every image bump.
+- **`agentic-memory-read` read model** — a cold start now builds a list of search terms (components, tools, error strings, concepts) and runs one fact search per term alongside the `<repo>#<issue>` reference search, plus a `search_nodes` call for the ticket's entity summary — a note that describes only the ticket yields no fact, and its content is reachable only there. `get_episodes`, project cold-start, and the ADR memory read are removed from the read model. Documents the `search_memory_facts` temporal bounds (`valid_at_after` / `valid_at_before` / `invalid_at_after` / `invalid_at_before`) as history-only, `get_episode_entities`, and `center_node_uuid`.
+- **`agentic-memory-write`** — `reference_time` is now a real `add_memory` parameter (it was not in the `1.0.2` signature); delete tools take `group_id`; the new `add_triplet` / saga / community tools are named as out of scope for progress-state.
+
+- **Memory scope rule: one group per repo, from `.harness6.json`** — `agentic-memory-read` / `agentic-memory-write` no longer derive a `group_id` per ticket (`owner_repo_<issue>`). They read one `group_id` from a git-ignored `.harness6.json` at the root of the repo's main worktree, and identify the ticket inside the data: episode `name` prefix `<repo>#<issue>`, `source_description` `repo=… issue=… kind=…`, and the body's first sentence. When the file is absent the skills make no memory call and ask the user to run `init` section 8. ADR 0003 amended. Existing episodes are **not migrated** and the read skill does not query the old per-ticket groups.
+- **`init` section 8** — per-repo step that proposes the normalized git remote owner as the `group_id`, lets the user override it, writes `.harness6.json`, and ignores it through `.git/info/exclude`.
+
+### Fixed
+
+- **Memory MCP endpoint is `/mcp`, not `/mcp/`** — the server answers the trailing-slash form with a 307 redirect (on `1.0.2` and `1.1.3` alike). Skills, compose, and the Kubernetes files now give the direct path.
+- **`get_episodes` parameter** — `agentic-memory-read` documented `last_n`, which neither `1.0.2` nor `1.1.3` accepts; the parameter is `max_episodes`.
+- **Stale backend references** — both memory skills still described the stack as FalkorDB-backed; it has been Neo4j since the durable-persistence change.
+
 ## [0.4.0] - 2026-09-22
 
 Minor release adding the aurora artifact-review MCP server to the infrastructure stack and wiring it into the report + init skills.

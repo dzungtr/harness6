@@ -111,6 +111,10 @@ kubectl create configmap graphiti-env -n "$NAMESPACE" \
 kubectl create configmap graphiti-config -n "$NAMESPACE" \
   --from-file="config.yaml=${CONFIG_FILE_DEFAULT}" \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+# Server override that restricts fact searches to currently-valid facts.
+kubectl create configmap graphiti-overrides -n "$NAMESPACE" \
+  --from-file="type_config.py=${SCRIPT_DIR}/../graphiti/type_config.py" \
+  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 info "graphiti ConfigMaps ready"
 
 # 3. graphiti-mcp raw manifests, wait for rollout (gates on Neo4j above).
@@ -128,4 +132,4 @@ if [[ -n "$INGRESS_CLASS" ]]; then
   info "graphiti-mcp Ingress applied (class ${INGRESS_CLASS})"
 fi
 
-info "graphiti-mcp reachable at http://<node>:${GRAPHITI_NODEPORT}/mcp/ (health: /health)"
+info "graphiti-mcp reachable at http://<node>:${GRAPHITI_NODEPORT}/mcp (health: /health)"

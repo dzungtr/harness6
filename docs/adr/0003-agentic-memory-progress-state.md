@@ -30,7 +30,7 @@ granular for a ticket and too undecided to be an ADR.
 ## Decision
 
 **Reframe the layer as ambient progress-state memory** — a self-service, agent-initiated store of
-tacit progress state, keyed to the GitHub work hierarchy, that makes cold-start handover smooth.
+tacit progress state, referenced to GitHub issues, that makes cold-start handover smooth.
 It is explicitly **non-authoritative**: a catch-net beside the ticket system, never a replacement.
 The process still works without it; with it, any agent can ask "what's the state of this epic /
 where do I pick up?" and get an answer.
@@ -47,27 +47,29 @@ Concretely:
    `search_nodes` becomes secondary. Bi-temporal invalidation is kept and is now the mechanism for
    aging out resolved blockers/drift (see "Resolution as event" in
    `skills/agentic-memory-write/SKILL.md`), not for superseding decisions.
-3. **Scope-key model.** Memory is scoped to the GitHub work hierarchy, project-namespaced (the
-   memory infra is shared across projects): `owner/repo` (project) · `owner/repo#<parent>` (epic)
-   · `owner/repo#<sub-issue>` (ticket) — resolved deterministically from the git remote plus
-   branch/PR/task-brief, used directly as the Graphiti `group_id`. Readable form now; rename
-   fragility is an accepted trade-off. Not revisited in this ADR: rename-proof node-ID scope keys. A fourth key, `owner/repo#adr-<NNNN>`
-   (ADR scope), sits **outside** this GitHub work hierarchy — it's keyed to an ADR file, not an
-   issue, and fires on ADR amendment rather than ticket progress (see
-   `skills/agentic-memory-write/SKILL.md`).
-4. **Write narrow, read wide (downward).** Writes always go to the most-specific scope (usually a
-   single ticket). Reads widen downward only: a ticket cold-start queries just that ticket; an
-   epic cold-start enumerates child sub-issues live via `gh` and queries the epic plus all
-   children, but pulls only bounded per-child summaries, fetching raw detail on demand when
-   descending into a specific child; a project cold-start reads its own ad-hoc notes plus a bounded
-   index of active epics — never a recursive dump of everything.
+3. **One memory group per repository, recorded in a metadata file.** Each repo's Graphiti
+   `group_id` is read from `.harness6.json` — a git-ignored file at the root of the repo's main
+   worktree, written by the `init` skill. Its default is the normalized git remote owner, so
+   repos under one owner share a group unless the user chooses otherwise. Graphiti deduplicates
+   entities and invalidates facts only within a group, so the group is the boundary of shared
+   knowledge, not a ticket key. Every read and write passes the group explicitly; the server
+   default group (`main`) is never used. When the file is absent the skills make no memory call
+   and ask the user to run `init`, rather than guessing a group.
+4. **Ticket identity lives in the data.** A ticket or epic is referenced as `<repo>#<issue>`, an
+   ADR as `<repo> ADR <NNNN>`. The reference opens the episode `name`, is repeated in
+   `source_description` (`repo=… issue=… kind=…`), and is named in the body's first sentence so
+   extracted facts carry it. A read runs inside the one group: an entity search for the
+   ticket's node and its summary, a fact search on the reference, and one fact search per
+   search term the agent derives from the task. An epic read runs a bounded reference search per child issue
+   enumerated live via `gh`. Fact searches return only facts valid at query time; the server
+   enforces it, so readers do not filter results.
 5. **Writes are event-driven**, not continuous and not session-end-only: blocker, drift, stopping
    point, silent descope, and resolution. Content is standup-prose to the next developer —
    coverage of "where it stands / what's the catch / where to pick up," not a rigid field schema.
 6. **Staleness** relies on resolution being a first-class write event (a superseding note that
    names what it resolves, letting Graphiti's bi-temporal extraction age out the stale state) plus
    read-time reconciliation against live GitHub issue open/closed status. An automated
-   GitHub-events ingester is deferred. ADR scope is exempt from both halves of this:
+   GitHub-events ingester is deferred. ADR episodes are exempt from both halves of this:
    there's no GitHub issue to reconcile against, and amendment history is durable by design, so it
    never ages out.
 7. **Three homes, one boundary:** ADR (architectural *why*) / GitHub Issues (*what/whether*,
@@ -86,8 +88,22 @@ Concretely:
   Graphiti's upstream built-in entity types are active. `docker-compose.yml`, `.env.example`, and
   the LLM/embedder/database/server sections of `config.yaml` are unaffected by this ADR — the
   embedder-endpoint decoupling from an earlier fix stays intact.
-- Any future consumer of this memory layer should scope reads/writes by `owner/repo[#issue]`, not
-  by ad-hoc `proj:<slug>` strings from the earlier framing.
+- Any future consumer of this memory layer reads the group from `.harness6.json` and identifies
+  tickets by the `<repo>#<issue>` reference, not by a `group_id` it derives itself.
+- Episodes written under per-ticket groups stay in those groups until migrated; the read skill
+  does not query them.
+
+## Considered Options
+
+**One `group_id` per ticket, epic, and ADR (`owner_repo_<issue>`, `owner_repo_adr_<NNNN>`).**
+Rejected: measured on 2026-11-17 across 44 groups, 172 entity names were duplicated between
+groups (`oolio-one` and `coderabbit` 13 times each), cross-ticket facts were invisible from any
+other group, and cold starts queried derived groups that held no episodes. Do not key
+`group_id` to the work hierarchy.
+
+**Derive the `group_id` from the git remote on every call.** Rejected: the three memory searches
+logged in the week to 2026-11-17 all omitted `group_ids` and fell through to the empty default
+group. The value is stored once per repo instead, where the user can also override it.
 
 ## Measured results
 
@@ -101,3 +117,4 @@ fallback `git log -p` on this file._
 | Date | PR | Change |
 |---|---|---|
 | 2026-08-24 | #31 | Add ADR scope as a fourth memory scope key (§3), outside the GitHub work hierarchy; exempt it from GitHub-status reconciliation and aging-out (§6). |
+| 2026-11-17 | #95 | Replace per-ticket scope keys with one group per repo read from `.harness6.json` (§3); ticket identity moves into episode name, `source_description`, and body (§4). |

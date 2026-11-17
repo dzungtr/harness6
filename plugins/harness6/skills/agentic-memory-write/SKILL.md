@@ -14,11 +14,12 @@ description: >
 Persists **ambient progress-state** — a standup note to the next developer — so a later cold
 start (yours or someone else's) can pick up smoothly. This is not a decision log: no
 `Decision`/`Outcome` typed shape, no schema file. Backed by the same self-hosted Graphiti +
-FalkorDB stack as `agentic-memory-read`, exposed as the `memory` MCP server.
+Neo4j stack as `agentic-memory-read`, exposed as the `memory` MCP server.
 
-Tool names and signatures below are **verified against the live upstream source**
-(`getzep/graphiti`, `mcp_server/src/graphiti_mcp_server.py`, main branch, checked
-2026-07-10) — keep them accurate, don't invent params.
+Tool names and signatures below are **verified against the upstream source at the pinned
+image tag** (`getzep/graphiti`, `mcp_server/src/graphiti_mcp_server.py`, tag `mcp-v1.1.3` =
+image `zepai/knowledge-graph-mcp:1.1.3-standalone`, checked 2026-11-17) — keep them accurate,
+don't invent params.
 
 ## When to write (event-driven, not continuous)
 
@@ -36,7 +37,7 @@ Write at these events only — not on every step, and not only at session end:
 - **ADR amended** — an ADR's `## Decision` or `## Considered Options` section changed. Write
   the full rationale deliberately kept OUT of the ADR file itself: what was believed before,
   what changed it (evidence, incident, PR), and why the new decision is correct. See "ADR
-  scope" below — this is still standup-prose, not a typed shape.
+  amendments" below — this is still standup-prose, not a typed shape.
 
 ## Content model: standup prose, coverage not schema
 
@@ -54,98 +55,139 @@ essay; a clean resolution doesn't need to restate the whole ticket.
 
 **Blocker:**
 
-> Ticket #78: implementation done, but can't verify against staging — staging API is
+> payments-service#78: implementation done, but can't verify against staging — staging API is
 > returning 500s on the endpoint this depends on. Not our bug; filed with infra. Picking back
 > up once staging is healthy again.
 
 **Drift at a stopping point:**
 
-> Ticket #142: ~78% done — the core migration path works and is tested. The remaining 22%
+> payments-service#142: ~78% done — the core migration path works and is tested. The remaining 22%
 > (backfill for archived records) turned out to need a schema change I didn't want to make
 > unreviewed, so I left it out. Ticket should probably stay open or get a follow-up filed;
 > code is on `feat/142-migration`, PR #150 (draft).
 
 **Silent descope / gotcha:**
 
-> Ticket #96: shipped without the CSV export the ticket mentions — the existing export lib
+> payments-service#96: shipped without the CSV export the ticket mentions — the existing export lib
 > doesn't support the requested column set, and adding that felt out of scope for this
 > ticket. Didn't call this out in the PR description; flagging here in case someone expects
 > it.
 
-## Write scope
+## Group resolution
 
-Write to your **most-specific** scope:
+Every repo has one memory group, recorded in a git-ignored metadata file at the root of the
+repo's **main** worktree: `.harness6.json`, written by the `init` skill.
 
-- On a ticket → `owner_repo_<issue>` (that ticket).
-- Genuinely cross-ticket note (affects the whole epic, not one child) → the epic scope,
-  `owner_repo_<epic>`.
-- Orphan/ad-hoc work with no issue → project scope, `owner_repo`.
-- Amending an ADR → the ADR scope, `owner_repo_adr_<NNNN>`, derived from the ADR filename
-  (`docs/adr/NNNN-slug.md`) plus the git remote, using the same joining rule as above.
-  Example: `dzungtr/harness6` + ADR 0003 → `dzungtr_harness6_adr_0003`. This scope sits
-  **outside** the GitHub work hierarchy the other three keys are built on — see "ADR scope"
-  below.
+```json
+{ "memory": { "group_id": "acme_org" } }
+```
 
-`group_id` must be underscore-joined, not slash/hash-joined and not dash-joined either.
-Normalize **every component** before joining: replace any `-`, `.`, `#`, or whitespace inside
-the owner/repo names with `_`, then lowercase — e.g. `acme-org/payments-service` →
-`acme_org_payments_service`. The final `group_id` must contain no character other than
-`[a-z0-9_]` plus `<issue>`/`<NNNN>` digits. This matches the project rule "repo `my-repo`
-→ `my_repo`" and `agentic-memory-read`'s "Scope resolution" — keep them identical.
-Slash/hash-joining makes FalkorDB's RediSearch full-text index throw `RediSearch: Syntax
-error at offset 17` on group_ids containing `/` or `#` (confirmed 2026-07-14). A
-first fix moved to dash-joining, but that same day, live testing found dash-joined group_ids
-trip the same class of RediSearch error and hang the write indefinitely instead of failing
-cleanly — reproduced on `tillpos-tony-my-claude`, which never completed (`count(n)` stuck at 0
-for 5+ minutes). Underscore-joined (`tillpos_tony_my_claude_test`) completed cleanly with zero
-RediSearch errors, so underscore is the verified-safe separator, not just another guess. See
-`agentic-memory-read`'s "Scope resolution" section for the full verification detail; keep the
-two skills' conventions identical.
+Resolve it before any `memory` call — from a linked worktree too, since the file is untracked
+and exists only in the main one:
 
-Don't write epic-level notes for single-ticket concerns — that breaks read-wide/write-narrow
-and pollutes every sibling ticket's epic-level read.
+```bash
+REPO_ROOT="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+jq -r '.memory.group_id // empty' "$REPO_ROOT/.harness6.json" 2>/dev/null
+```
+
+- **Pass it explicitly on every call** (`group_ids=[<group>]` on reads, `group_id=<group>` on
+  writes). A call without it silently uses the server default group `main`, which holds
+  nothing — reads come back empty and writes are stranded.
+- **File missing or `group_id` empty** — make no `memory` call. Ask the user to create the
+  file by running the `init` skill's section 8 ("Record this repository's harness6
+  metadata"), which proposes a group and lets them choose. Continue the memory write once the
+  file exists. Don't guess a group and don't write the file yourself: a guessed group splits
+  the repo's memory across two graphs. If the user declines, carry on with the task without
+  memory and say so.
+- A `group_id` contains only `[a-z0-9_]`.
+
+Several repos normally share one group (the `init` default is the git remote owner, not the
+repo), so
+entities and facts are deduplicated and invalidated across every ticket and repo in it.
+`global` is a separate group reserved for the `signoz-*-queries` skills' telemetry-schema
+notes.
+
+This section matches `agentic-memory-read`; keep the two in step.
+
+## Ticket identity lives in the data
+
+One group holds every ticket, so each episode must say which one it is about. Build the
+**reference** first:
+
+| Work | Reference |
+| --- | --- |
+| Ticket or epic | `<repo>#<issue>` — `payments-service#424` |
+| ADR amendment | `<repo> ADR <NNNN>` — `harness6 ADR 0003` |
+| No issue (ad-hoc) | `<repo>` |
+
+`<repo>` is the repository name as GitHub shows it, without the owner. Resolve the issue
+number from, in order: the task brief, the branch name, the issue linked from the branch's
+open PR. A PR number is not an issue number — don't use it as one.
+
+Put the reference in three places, because each feeds a different read:
+
+- **`name`** — `<reference> — <Kind>: <title>`, so an episode is identifiable when listed.
+- **`source_description`** — `repo=<owner/repo> issue=<n> kind=<kind>` (`adr=<NNNN>` in place
+  of `issue=` for an ADR; omit `issue=` when there is none). `<kind>` is one of `blocker`,
+  `drift`, `stopping-point`, `descope`, `resolved`, `gotcha`, `adr-amendment`.
+- **First sentence of `episode_body`** — name the reference in prose (`payments-service#424:
+  implementation done, but …`). `agentic-memory-read` reads facts, and facts are extracted
+  from the body alone, so a body that never names its ticket yields facts no ticket search can
+  find.
+
+A note about one ticket references that ticket, not its epic. Reference the epic only for
+something that genuinely affects all of its children.
 
 ## Resolution as event
 
 When a blocker clears or drifted work gets finished, write a new episode that **names what it
 resolves**, e.g.:
 
-> Blocker on #78 noted 2026-07-09 is cleared: staging was misconfigured (wrong env var),
+> The payments-service#78 blocker noted 2026-07-09 is cleared: staging was misconfigured (wrong env var),
 > infra fixed it. Verified against staging now, all green.
 
 Naming the prior state explicitly gives Graphiti's bi-temporal extraction what it needs to
 recognize the contradiction and age out (invalidate, not delete) the stale note — don't rely
 on a terse "fixed" with no reference to what it fixes.
 
-## ADR scope
+## ADR amendments
 
-Episode naming follows the same convention as any other write, e.g. `"Amendment: ADR-0003
-group_id normalization fix"`. The episode body is still standup-prose — where it stood,
+An ADR amendment uses the ADR reference, e.g. `"harness6 ADR 0003 — Amendment: one memory
+group per repo"`. The episode body is still standup-prose — where it stood,
 what changed it, why the new decision is correct — never a typed `Decision`/`Outcome`/
 `SUPERSEDES` shape.
 
-ADR-scope episodes are not ticket-scoped: unlike the other three scopes, never reconcile them
+ADR episodes are not tied to a ticket: never reconcile them
 against a GitHub issue's open/closed status (there usually isn't one), and never age them out.
 Amendment history is durable by design — it's the whole reason this trigger exists — so the
 "Resolution as event" aging-out mechanism above doesn't apply here.
 
 ## `add_memory` call
 
-- `name`: a short episode title, e.g. `"Blocker: #78 staging 500s"` or `"Resolved: #78
-  staging blocker"`.
-- `group_id`: the single, explicit resolved scope (see "Write scope" above) — never rely on
-  the server's configured default (`GRAPHITI_GROUP_ID`, `main`).
+- `name`: reference, kind, short title — e.g. `"payments-service#78 — Blocker: staging 500s"`
+  or `"payments-service#78 — Resolved: staging blocker"`.
+- `group_id`: the repo's group from `.harness6.json` (see "Group resolution" above) — never
+  rely on the server's configured default (`GRAPHITI_GROUP_ID`, `main`).
+- `source_description`: `"repo=acme-org/payments-service issue=78 kind=blocker"`.
 - `reference_time`: ISO-8601 (e.g. `2026-07-11T14:30:00Z`) — when the event actually
-  happened, not just when you happened to write it.
+  happened, not just when you happened to write it. Timezone-naive is read as UTC; a malformed
+  value is rejected up front with `Invalid reference_time`. This is what anchors the extracted
+  facts' `valid_at`, which `agentic-memory-read`'s temporal filters query — so set it whenever
+  the event time differs from now.
 - `episode_body`: the prose note itself (see examples above).
 - `source`: `"text"` (default) unless feeding structured JSON, in which case `"json"` with a
   properly-escaped JSON string.
 
 ## Other write/delete tools
 
-- `delete_episode(uuid=...)` / `delete_entity_edge(uuid=...)`: remove a mistaken write.
-  Cascade behavior is scoped to what that episode/edge solely created — check the tool's own
-  docstring before relying on it for a large mistake.
+- `delete_episode(uuid=..., group_id=<group>)` / `delete_entity_edge(uuid=...,
+  group_id=<group>)`: remove a mistaken write. `delete_episode` cascades to entities and facts
+  that episode alone created; anything other episodes also support is kept.
+- `add_triplet`, `summarize_saga`, `build_communities`, and `add_memory`'s `saga` /
+  `update_communities` / `custom_extraction_instructions` params exist on the server but are
+  **not part of this workflow** — `add_triplet` bypasses episode extraction (no prose note, no
+  bi-temporal invalidation), and `build_communities` reprocesses every entity in the group.
+  Don't reach for them to record progress-state.
 
 ## Rules
 
@@ -159,7 +201,7 @@ Amendment history is durable by design — it's the whole reason this trigger ex
 
 ## Loading context first
 
-If you haven't already loaded progress-state for this scope this session, use the
+If you haven't already loaded progress-state for this ticket this session, use the
 `agentic-memory-read` skill first.
 
 ## Relationship to file-based memory

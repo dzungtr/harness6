@@ -1,8 +1,10 @@
 # Graphiti MCP Server Configuration — overrides the image's baked-in default.
 # Mounted read-only at /app/mcp/config/config.yaml by docker-compose.yml.
 #
-# Base structure copied verbatim from the verified upstream default
-# (getzep/graphiti mcp_server/config/config.yaml, main branch, 2026-07-10).
+# Base structure follows the upstream default at the pinned image tag
+# (getzep/graphiti mcp_server/config/config.yaml, tag mcp-v1.1.3).
+# server.host must stay "0.0.0.0": upstream's default is now 127.0.0.1, which
+# is unreachable through the container's published port.
 #
 # `graphiti.entity_types` below intentionally lists ONLY the upstream
 # built-in types (Preference, Requirement, Procedure, Location, Event,
@@ -22,6 +24,11 @@ llm:
   provider: "openai" # OpenAI-API-compatible; endpoint set by OPENAI_API_URL in infrastructure/.env.
   model: ${MODEL_NAME:gpt-5.5}
   max_tokens: 4096
+  # Any api_url other than api.openai.com / openai.azure.com is served through
+  # Chat Completions with a structured-output request. json_schema asks the
+  # provider to enforce the schema; json_object injects it into the prompt
+  # instead, for providers that accept json_schema but do not enforce it.
+  structured_output_mode: ${LLM_STRUCTURED_OUTPUT_MODE:json_schema}
 
   providers:
     openai:

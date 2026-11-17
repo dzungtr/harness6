@@ -3,8 +3,12 @@ name: init
 description: >
   Initialize the shared harness6 infrastructure stack after installing the plugin. Resolve the
   plugin cache root from the active harness, choose a container runtime, scaffold infrastructure/.env
-  without overwriting it, start Compose, register the bundled MCP servers, and set up memsearch.
+  without overwriting it, start Compose, register the bundled MCP servers, set up memsearch, and
+  record the current repo's harness6 metadata (its memory group) in a git-ignored `.harness6.json`.
 ---
+
+Sections 1–7 set up the machine-wide stack once. Section 8 is per repository: when the stack is
+already running and the user only wants a new repo onboarded, run section 8 alone.
 
 ## 1. Resolve the plugin root
 
@@ -153,7 +157,7 @@ Report to the user (replace `<node>` with any reachable node IP):
 
 - SigNoz UI: `http://<node>:<nodePort-of-8080>`
 - OTLP endpoints: `<node>:<nodePort-of-4317>` (gRPC) and `<node>:<nodePort-of-4318>` (HTTP)
-- graphiti-mcp: `http://<node>:30800/mcp/` (health: `/health`)
+- graphiti-mcp: `http://<node>:30800/mcp` (health: `/health`)
 - Milvus (memsearch URI): `<node>:<nodePort-of-19530>`
 
 Then continue with `.mcp.json` registration and memsearch setup (sections 6–7), using the
@@ -236,7 +240,7 @@ server names, and ask for confirmation before writing. Preserve unrelated existi
 servers by merging rather than replacing the target. For a project target that is the same file as
 the source, report that it is already installed and do not copy it. If the source `.mcp.json` cannot
 be found at the repository root, report the path and skip registration rather than inventing config.
-The copied entries must retain the HTTP URLs (including `/mcp/` for agentic-memory).
+The copied entries must retain the HTTP URLs (including `/mcp`, with no trailing slash, for agentic-memory).
 
 ## 6b. Register the aurora MCP server at user scope (both paths)
 
@@ -298,3 +302,68 @@ memsearch config set embedding.api_key "env:$EMBEDDING_API_KEY_ENV"
 Verify `memsearch config get milvus.uri`, `embedding.provider`, and `embedding.model` return
 non-empty values, then invoke `memsearch-init`. If the user declines or indexing fails, report the
 raw error and leave the infrastructure setup result separate from the memsearch result.
+
+## 8. Record this repository's harness6 metadata
+
+Each repository keeps its harness6 settings in `.harness6.json` at the root of its **main**
+worktree. The file is local to this machine and never committed. Today it holds one setting —
+the Graphiti `group_id` the `agentic-memory-read` / `agentic-memory-write` skills use:
+
+```json
+{ "memory": { "group_id": "acme_org" } }
+```
+
+Run this from inside the repository being onboarded (not the plugin directory). Skip the
+section with a one-line note when the current directory is not a git repository.
+
+```bash
+GIT_COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir)"
+REPO_ROOT="$(dirname "$GIT_COMMON_DIR")"
+META_FILE="$REPO_ROOT/.harness6.json"
+```
+
+`REPO_ROOT` is the main worktree even when this runs from a linked worktree, so every worktree
+of the repo resolves the same file.
+
+### Choose the group
+
+If `META_FILE` already has a non-empty `.memory.group_id`, show it and leave it unchanged
+unless the user asks to change it. Changing it does not move existing memory: episodes already
+written stay in the old group.
+
+Otherwise compute the default — the git remote owner, lowercased, every character outside
+`[a-z0-9]` replaced by `_`:
+
+```bash
+OWNER="$(gh repo view --json owner -q .owner.login 2>/dev/null \
+  || git remote get-url origin | sed -E 's#^(.*[:/])([^/]+)/[^/]+$#\2#')"
+DEFAULT_GROUP="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]/_/g')"
+```
+
+Show the default and ask the user to confirm it or give another value, explaining the choice:
+repositories that share a `group_id` share one memory graph (entities and facts are
+deduplicated across them), so the owner-level default suits repos that belong to one body of
+work, and a different value isolates this repo. Accept only values matching `^[a-z0-9_]+$`,
+and refuse `main` (the server's fallback group) and `global` (reserved for the
+`signoz-*-queries` skills).
+
+### Write the file and ignore it
+
+Merge into the existing file rather than replacing it, so other keys survive:
+
+```bash
+[ -f "$META_FILE" ] || printf '{}\n' > "$META_FILE"
+tmp="$(mktemp)" && jq --arg g "$GROUP_ID" '.memory.group_id = $g' "$META_FILE" > "$tmp" && mv "$tmp" "$META_FILE"
+```
+
+Ignore it through the repository's local exclude file, which needs no commit and applies to
+every worktree:
+
+```bash
+git -C "$REPO_ROOT" check-ignore -q .harness6.json \
+  || printf '%s\n' '.harness6.json' >> "$GIT_COMMON_DIR/info/exclude"
+```
+
+Verify before reporting success: `git -C "$REPO_ROOT" check-ignore -q .harness6.json` succeeds
+and `git -C "$REPO_ROOT" status --porcelain -- .harness6.json` prints nothing. Report the file
+path and the recorded `group_id`.

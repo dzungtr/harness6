@@ -14,85 +14,121 @@ description: >
 Loads **ambient progress-state** — not prior "decisions" — so a cold-started session (yours or
 someone else's) knows where the last session left off: blockers, drift between ticket intent
 and delivered result, gotchas, and where to pick up. Backed by a self-hosted Graphiti +
-FalkorDB stack — the `graphiti-mcp` service in `infrastructure/docker-compose.yml`, with
+Neo4j stack — the `graphiti-mcp` service in `infrastructure/docker-compose.yml`, with
 entity-type schema at `infrastructure/config.yaml` — exposed as the `memory` MCP server.
 
-Tool names and signatures below are **verified against the live upstream source**
-(`getzep/graphiti`, `mcp_server/src/graphiti_mcp_server.py`, main branch, checked
-2026-07-10) — keep them accurate, don't invent params.
+Tool names and signatures below are **verified against the upstream source at the pinned
+image tag** (`getzep/graphiti`, `mcp_server/src/graphiti_mcp_server.py`, tag `mcp-v1.1.3` =
+image `zepai/knowledge-graph-mcp:1.1.3-standalone`, checked 2026-11-17) — keep them accurate,
+don't invent params.
 
-## Scope resolution
+## Group resolution
 
-Memory is scoped to the GitHub work hierarchy, project-namespaced (the infra is shared across
-projects):
+Every repo has one memory group, recorded in a git-ignored metadata file at the root of the
+repo's **main** worktree: `.harness6.json`, written by the `init` skill.
 
-- **Project scope** — `owner_repo`. Derive from the git remote: `gh repo view --json
-  nameWithOwner -q .nameWithOwner`, or parse `git remote get-url origin` if `gh` isn't
-  available.
-- **Normalize every component** before joining: replace any `-`, `.`, `#`, or whitespace
-  inside the owner and repo names with `_`, then lowercase. E.g. `acme-org/payments-service`
-  → `acme_org_payments_service`; `dzungtr/harness6` → `dzungtr_harness6`. The result must
-  contain no character other than `[a-z0-9_]` and `<issue>`/`<NNNN>` digits.
-- **Epic/ticket scope** — `owner_repo_<issue>`. Append the issue number resolved from (in
-  order of preference) the current branch name, the open PR for the branch, or the task brief
-  you were given.
+```json
+{ "memory": { "group_id": "acme_org" } }
+```
 
-These scope keys are used directly as the Graphiti `group_id`, underscore-joined — not
-`owner/repo` or `owner/repo#<issue>`, and not dash-joined either. This convention went through
-two rounds of live verification against the `mem-graphiti-mcp` container
-(zepai/knowledge-graph-mcp, FalkorDB-backed):
+Resolve it before any `memory` call — from a linked worktree too, since the file is untracked
+and exists only in the main one:
 
-1. **2026-07-14, round 1** — slash/hash-joined group_ids (e.g. `acme-org/payments-service`
-   or `acme-org/payments-service#424`) make FalkorDB's RediSearch full-text index throw
-   `RediSearch: Syntax error at offset 17` on group_ids containing `/` or `#`. Only
-   `search_nodes`/`search_memory_facts` surface that error directly — `get_episodes` silently
-   returns empty for the same group_id instead, so the failure mode is easy to miss. The fix
-   at the time was to switch to dash-joined (`owner-repo`, `owner-repo-<issue>`).
-2. **2026-07-14, round 2** — dash-joined group_ids turned out to trip the **same class** of
-   RediSearch syntax error, and worse: on group_id `tillpos-tony-my-claude`, the write didn't
-   fail cleanly — it hung indefinitely, retrying every extracted keyword combination forever
-   during Graphiti's internal entity-dedup search, with `count(n)` stuck at 0 in FalkorDB for
-   5+ minutes and no episode ever persisted. A control test with an **underscore-joined**
-   group_id (`tillpos_tony_my_claude_test`) completed the full pipeline cleanly — LLM
-   extraction, embeddings, edge resolution, `Successfully processed episode` logged, 6
-   entities persisted, zero RediSearch errors.
+```bash
+REPO_ROOT="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+jq -r '.memory.group_id // empty' "$REPO_ROOT/.harness6.json" 2>/dev/null
+```
 
-Use the underscore-joined form always; both this skill and `agentic-memory-write` must stay
-consistent.
+- **Pass it explicitly on every call** (`group_ids=[<group>]` on reads, `group_id=<group>` on
+  writes). A call without it silently uses the server default group `main`, which holds
+  nothing — reads come back empty and writes are stranded.
+- **File missing or `group_id` empty** — make no `memory` call. Ask the user to create the
+  file by running the `init` skill's section 8 ("Record this repository's harness6
+  metadata"), which proposes a group and lets them choose. Continue the memory read once the
+  file exists. Don't guess a group and don't write the file yourself: a guessed group splits
+  the repo's memory across two graphs. If the user declines, carry on with the task without
+  memory and say so.
+- A `group_id` contains only `[a-z0-9_]`.
 
-## Read model: read wide (downward only), write narrow
+Several repos normally share one group (the `init` default is the git remote owner, not the
+repo), so
+entities and facts are deduplicated and invalidated across every ticket and repo in it.
+`global` is a separate group reserved for the `signoz-*-queries` skills' telemetry-schema
+notes.
 
-Reads widen *downward* into child tickets of whatever scope you're cold-starting into — never
-upward into parents. An orphan ticket's memory shouldn't leak epic-level notes, and the
-reverse isn't needed because writes always go to the most-specific scope (see
-`agentic-memory-write`).
+## Ticket identity lives in the data
 
-1. **Ticket cold-start** (you're picking up a specific issue): query only that ticket's
-   scope — `group_ids=["owner_repo_<issue>"]`. This is the common case.
-2. **Epic cold-start** (you're opening a parent epic to see where its children stand):
-   enumerate child sub-issues live via `gh` (e.g. `gh issue view <epic> --json ...` / the
-   sub-issue listing for that issue), then query `group_ids=[epic, ...children]`. Pull only a
-   **bounded per-child summary** — recent status, open blockers, open drift — not the full raw
-   episode history for every child. Fetch a specific child's raw detail on demand only when
-   you actually descend into working that child ticket.
-3. **Project cold-start** (no specific issue — ad-hoc/orphan work, or scanning what's active):
-   query your own project-scope notes (`owner_repo`) plus a bounded index of active epics.
-   Never recursively dump every epic's every child — that defeats "bounded."
-4. **ADR read** (you're reading an ADR that has an `## Amendments` section): derive the ADR
-   scope group_id — `owner_repo_adr_<NNNN>`, per `agentic-memory-write`'s "Write scope" — and
-   query it before acting on, or re-amending, that ADR. The Amendments table's presence is the
-   signal that expandable history exists in memory; an ADR with no such section has none to
-   fetch.
-5. **Rejected-option check** (you're about to propose something an ADR's
-   `## Considered Options` already marks rejected): query that ADR's scope for the full
-   reasoning before reviving it — the ADR body only carries the terse standing prohibition and
-   its evidence, not the whole story.
+The group says nothing about which ticket a note belongs to. That is carried by the episode
+itself (written by `agentic-memory-write`):
+
+- **Reference** — `<repo>#<issue>` for a ticket or epic (`payments-service#424`), bare
+  `<repo>` for work with no issue. `<repo>` is the repository name as GitHub shows it,
+  without the owner.
+- Episode `name` starts with the reference; `source_description` repeats it as
+  `repo=<owner/repo> issue=<n> kind=<kind>`; the body names it in its first sentence, so
+  extracted facts carry it too.
+
+Resolve the issue number from, in order: the task brief, the branch name, the issue linked
+from the branch's open PR. A PR number is not an issue number — don't use it as one.
+
+## Read model
+
+All reads go to the one group. A cold start runs three kinds of search: the ticket's entity,
+facts by reference, and facts by search term. Facts are relationships between two entities,
+so a note that only describes the ticket itself yields no fact — its content lives in the
+ticket entity's summary, which only the entity search returns. Term searches cover the other
+gap: a note filed under another ticket or repo is found only by what it is about.
+
+### 1. Build the search-term list
+
+Before the first call, list what this task touches. Take the terms from the task brief, the
+issue body, and the files or diff in play:
+
+- components, services, and modules (`checkout-api`, `karpenter node pool`)
+- tools, platforms, and environments (`argocd`, `staging cluster`)
+- error strings and symptoms, quoted as they appear (`RediSearch syntax error`)
+- domain concepts and decisions (`group_id normalization`, `approval group membership`)
+
+Keep each term a specific noun phrase of two to five words — the search matches fact text by
+keyword and by embedding, so `r6a.large vCPU memory ratio` finds what `instance sizing`
+buries. Aim for three to six terms; drop any that only restate the ticket title.
+
+### 2. Run the searches
+
+Issue these in one batch:
+
+- **Ticket entity** — `search_nodes(query="<repo>#<issue>", group_ids=[<group>],
+  max_nodes=5)`. Take the node whose `name` is the reference and read its `summary`: a
+  running digest of what every note said about the ticket. No node with that name means the
+  ticket was never recorded as an entity; the other nodes returned are neighbours, not
+  matches.
+- **Reference** — `search_memory_facts(query="<repo>#<issue>", group_ids=[<group>])`.
+- **Each term** — `search_memory_facts(query="<term>", group_ids=[<group>], max_facts=5)`,
+  one call per term, without the reference in the query so other tickets' facts can match.
+
+Merge the results by fact `uuid`. A fact returned by a term search and not by the reference
+search came from other work: read it as background on the topic, not as this ticket's state.
+
+Every fact returned is valid at query time — the server drops superseded facts — so use the
+results as they come; there is nothing to filter out.
+
+The entity summary has no validity dates and is not filtered. Use it for what the facts leave
+out — reasons, next steps, a ticket with no facts at all — and where it disagrees with a
+returned fact, go with the fact.
+
+### Variations
+
+- **Epic cold-start**: list the child issues live via `gh`, then run the entity and reference
+  searches once for the epic and once per child with `max_facts=5` — a bounded per-child
+  summary. Run the term searches once for the epic, not per child.
+- **Tighter ranking around one ticket**: pass the ticket entity's `uuid` as
+  `center_node_uuid` to the term searches.
 
 ## Read-time reconciliation
 
 Memory is not authoritative — cross-check against live GitHub state before trusting a note:
 
-- Check the open/closed status of the scope's issue(s) (e.g. `gh issue view <n> --json
+- Check the open/closed status of the referenced issue(s) (e.g. `gh issue view <n> --json
   state`).
 - Treat memory tied to a **CLOSED** ticket as historical context, not current state — the work
   may have shipped, or the note may predate a resolution that never made it back into memory.
@@ -100,16 +136,48 @@ Memory is not authoritative — cross-check against live GitHub state before tru
 
 ## Tools
 
-Primary read is **scope + recency**, not semantic search:
-
-- `get_episodes(group_ids=[...], last_n=<n>)`: the default read — recent raw episodes for the
-  resolved scope(s). Start here.
-- `search_memory_facts(query=<topic>, group_ids=[...])`: scope+recency search over extracted
-  facts (edges) when you need something more targeted than "most recent."
-- `search_nodes(query=<topic>, group_ids=[...])`: SECONDARY — semantic entity search. Use when
-  scope+recency reads don't surface what you need, not as the first call.
+- `search_memory_facts(query=<text>, group_ids=[...], max_facts=<n>)`: the primary read.
+  Matches `query` against fact text two ways — keyword (BM25) and embedding similarity —
+  merges the two rankings, and returns the top `max_facts` (default 10). Each fact carries
+  `fact`, `name`, `valid_at`, `invalid_at`, and the `episodes` uuids it came from. It makes
+  one embedding request and no LLM call, so several searches in a batch are cheap.
+  `center_node_uuid=<uuid>` re-ranks by graph distance to that entity.
+- `search_nodes(query=<text>, group_ids=[...], max_nodes=<n>)`: entity search, same
+  keyword-plus-embedding ranking over entity names and summaries (default 10). Each node
+  carries `uuid`, `name`, `labels`, and `summary`. Like the fact search it returns its nearest
+  matches even when nothing matches, so check `name`. `entity_types=[...]` filters by label.
+- `get_episode_entities(episode_uuids=[...], group_id=<group>)`: provenance — the entities and
+  facts a given episode produced.
 - `get_status()`: confirm the server + database connection are healthy before assuming a read
-  silently failed (or returned stale/empty results).
+  silently failed (or returned empty results).
+
+`group_ids` accepts a single string or a list. `get_episode_entities` takes a singular
+`group_id`; omitting it falls back to the server default (`main`), so always pass the group.
+
+### Validity and history on `search_memory_facts`
+
+By default the search returns **only facts valid at query time**: not superseded, and with no
+end date in the past. This stack enforces that in the server
+(`infrastructure/graphiti/type_config.py`), so pass no time parameter for a normal read.
+
+The four optional ISO-8601 bounds are for history questions only (timezone-naive is read as
+UTC; a malformed value returns `Invalid date filter`):
+
+| Param | Keeps facts whose |
+| --- | --- |
+| `valid_at_after` | `valid_at` ≥ bound — became true at or after this time |
+| `valid_at_before` | `valid_at` ≤ bound — became true at or before this time |
+| `invalid_at_after` | `invalid_at` ≥ bound — were superseded at or after this time |
+| `invalid_at_before` | `invalid_at` ≤ bound — were superseded at or before this time |
+
+- **What changed since I last looked** — `valid_at_after=<last session time>`; still
+  current-only.
+- **What was resolved or superseded** — pass an `invalid_at_*` bound. That switches the
+  current-only default off for the call and returns the superseded facts in that range — how
+  a cleared blocker shows up.
+
+A `valid_at_*` bound excludes facts that have no `valid_at`. `edge_types=[...]` also exists,
+but this stack configures no custom edge types, so leave it unset.
 
 ## MCP client registration
 
@@ -122,13 +190,14 @@ endpoint (default host port from `infrastructure/.env.example` is `8121`, overri
   "mcpServers": {
     "memory": {
       "type": "http",
-      "url": "http://localhost:8121/mcp/"
+      "url": "http://localhost:8121/mcp"
     }
   }
 }
 ```
 
-Note the trailing `/mcp/` and `"http"` transport — verified against the upstream server's
+Note the `/mcp` path with no trailing slash (the server answers `/mcp/` with a 307 redirect
+to it) and the `"http"` transport — verified against the upstream server's
 default transport (SSE is listed as deprecated upstream, not the recommended path used here).
 
 ## Next step
