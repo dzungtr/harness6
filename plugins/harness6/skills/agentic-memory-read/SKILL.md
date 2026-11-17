@@ -73,9 +73,11 @@ from the branch's open PR. A PR number is not an issue number — don't use it a
 
 ## Read model
 
-All reads are fact searches against the one group. A cold start runs two kinds — by reference and
-by search term — because a note filed under another ticket or repo is found only by what it
-is about.
+All reads go to the one group. A cold start runs three kinds of search: the ticket's entity,
+facts by reference, and facts by search term. Facts are relationships between two entities,
+so a note that only describes the ticket itself yields no fact — its content lives in the
+ticket entity's summary, which only the entity search returns. Term searches cover the other
+gap: a note filed under another ticket or repo is found only by what it is about.
 
 ### 1. Build the search-term list
 
@@ -95,6 +97,11 @@ buries. Aim for three to six terms; drop any that only restate the ticket title.
 
 Issue these in one batch:
 
+- **Ticket entity** — `search_nodes(query="<repo>#<issue>", group_ids=[<group>],
+  max_nodes=5)`. Take the node whose `name` is the reference and read its `summary`: a
+  running digest of what every note said about the ticket. No node with that name means the
+  ticket was never recorded as an entity; the other nodes returned are neighbours, not
+  matches.
 - **Reference** — `search_memory_facts(query="<repo>#<issue>", group_ids=[<group>])`.
 - **Each term** — `search_memory_facts(query="<term>", group_ids=[<group>], max_facts=5)`,
   one call per term, without the reference in the query so other tickets' facts can match.
@@ -105,13 +112,16 @@ search came from other work: read it as background on the topic, not as this tic
 Every fact returned is valid at query time — the server drops superseded facts — so use the
 results as they come; there is nothing to filter out.
 
+The entity summary has no validity dates and is not filtered. Use it for what the facts leave
+out — reasons, next steps, a ticket with no facts at all — and where it disagrees with a
+returned fact, go with the fact.
+
 ### Variations
 
-- **Epic cold-start**: list the child issues live via `gh`, then run the reference search
-  once for the epic and once per child with `max_facts=5` — a bounded per-child summary. Run
-  the term searches once for the epic, not per child.
-- **Tighter ranking around one ticket**: find its entity with
-  `search_nodes(query="<repo>#<issue>", group_ids=[<group>])` and pass that node's uuid as
+- **Epic cold-start**: list the child issues live via `gh`, then run the entity and reference
+  searches once for the epic and once per child with `max_facts=5` — a bounded per-child
+  summary. Run the term searches once for the epic, not per child.
+- **Tighter ranking around one ticket**: pass the ticket entity's `uuid` as
   `center_node_uuid` to the term searches.
 
 ## Read-time reconciliation
@@ -132,8 +142,10 @@ Memory is not authoritative — cross-check against live GitHub state before tru
   `fact`, `name`, `valid_at`, `invalid_at`, and the `episodes` uuids it came from. It makes
   one embedding request and no LLM call, so several searches in a batch are cheap.
   `center_node_uuid=<uuid>` re-ranks by graph distance to that entity.
-- `search_nodes(query=<topic>, group_ids=[...], entity_types=[...])`: SECONDARY — entity
-  search. Use it to find an entity's uuid for `center_node_uuid`, not as the first call.
+- `search_nodes(query=<text>, group_ids=[...], max_nodes=<n>)`: entity search, same
+  keyword-plus-embedding ranking over entity names and summaries (default 10). Each node
+  carries `uuid`, `name`, `labels`, and `summary`. Like the fact search it returns its nearest
+  matches even when nothing matches, so check `name`. `entity_types=[...]` filters by label.
 - `get_episode_entities(episode_uuids=[...], group_id=<group>)`: provenance — the entities and
   facts a given episode produced.
 - `get_status()`: confirm the server + database connection are healthy before assuming a read
