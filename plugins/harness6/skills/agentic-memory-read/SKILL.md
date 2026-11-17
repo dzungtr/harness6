@@ -178,13 +178,14 @@ endpoint (default host port from `infrastructure/.env.example` is `8121`, overri
   "mcpServers": {
     "memory": {
       "type": "http",
-      "url": "http://localhost:8121/mcp/"
+      "url": "http://localhost:8121/mcp"
     }
   }
 }
 ```
 
-Note the trailing `/mcp/` and `"http"` transport — verified against the upstream server's
+Note the `/mcp` path with no trailing slash (the server answers `/mcp/` with a 307 redirect
+to it) and the `"http"` transport — verified against the upstream server's
 default transport (SSE is listed as deprecated upstream, not the recommended path used here).
 
 ## Next step

@@ -157,7 +157,7 @@ Report to the user (replace `<node>` with any reachable node IP):
 
 - SigNoz UI: `http://<node>:<nodePort-of-8080>`
 - OTLP endpoints: `<node>:<nodePort-of-4317>` (gRPC) and `<node>:<nodePort-of-4318>` (HTTP)
-- graphiti-mcp: `http://<node>:30800/mcp/` (health: `/health`)
+- graphiti-mcp: `http://<node>:30800/mcp` (health: `/health`)
 - Milvus (memsearch URI): `<node>:<nodePort-of-19530>`
 
 Then continue with `.mcp.json` registration and memsearch setup (sections 6–7), using the
@@ -240,7 +240,7 @@ server names, and ask for confirmation before writing. Preserve unrelated existi
 servers by merging rather than replacing the target. For a project target that is the same file as
 the source, report that it is already installed and do not copy it. If the source `.mcp.json` cannot
 be found at the repository root, report the path and skip registration rather than inventing config.
-The copied entries must retain the HTTP URLs (including `/mcp/` for agentic-memory).
+The copied entries must retain the HTTP URLs (including `/mcp`, with no trailing slash, for agentic-memory).
 
 ## 6b. Register the aurora MCP server at user scope (both paths)
 

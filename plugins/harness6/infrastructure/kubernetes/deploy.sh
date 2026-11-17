@@ -132,4 +132,4 @@ if [[ -n "$INGRESS_CLASS" ]]; then
   info "graphiti-mcp Ingress applied (class ${INGRESS_CLASS})"
 fi
 
-info "graphiti-mcp reachable at http://<node>:${GRAPHITI_NODEPORT}/mcp/ (health: /health)"
+info "graphiti-mcp reachable at http://<node>:${GRAPHITI_NODEPORT}/mcp (health: /health)"

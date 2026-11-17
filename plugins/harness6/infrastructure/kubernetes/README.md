@@ -20,7 +20,7 @@ Layout:
   5.26.30) and the graphiti-mcp raw manifests in dependency order, waits for
   each rollout, and reports endpoints. Run `bootstrap.sh` first: it needs
   `values-user.yaml` and the `harness6-secrets` Secret. graphiti-mcp Service
-  is NodePort **30800** (HTTP `/mcp/` and `/health`); when `ingressClassName`
+  is NodePort **30800** (HTTP `/mcp` and `/health`); when `ingressClassName`
   is set, `manifests/graphiti-mcp-ingress.yaml.template` is rendered and
   applied as an Ingress on top (Service stays NodePort).
 - `deploy-signoz.sh` (slice #47) — deploys the SigNoz stack from the official

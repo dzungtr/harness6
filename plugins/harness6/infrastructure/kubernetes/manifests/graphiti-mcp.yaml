@@ -18,7 +18,7 @@ spec:
     - name: http
       port: 8000
       targetPort: 8000
-      nodePort: 30800 # graphiti MCP HTTP endpoint at /mcp/ (and /health)
+      nodePort: 30800 # graphiti MCP HTTP endpoint at /mcp (and /health)
 ---
 apiVersion: apps/v1
 kind: Deployment

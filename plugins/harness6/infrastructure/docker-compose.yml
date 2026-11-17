@@ -169,7 +169,7 @@ services:
       # be re-synced with upstream whenever the image tag above changes.
       - ./graphiti/type_config.py:/app/mcp/src/utils/type_config.py:ro,z
     ports:
-      - "${GRAPHITI_MCP_HTTP_PORT:-8121}:8000" # MCP HTTP endpoint at /mcp/
+      - "${GRAPHITI_MCP_HTTP_PORT:-8121}:8000" # MCP HTTP endpoint at /mcp
     extra_hosts:
       # Lets EMBEDDER_API_URL point at a local Ollama on the host (e.g.
       # http://host.docker.internal:11434/v1); not needed for cloud providers.

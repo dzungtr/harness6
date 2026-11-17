@@ -17,6 +17,7 @@ Patch release upgrading the Graphiti memory MCP server from `1.0.2` to `1.1.3` (
 
 ### Fixed
 
+- **Memory MCP endpoint is `/mcp`, not `/mcp/`** — the server answers the trailing-slash form with a 307 redirect (on `1.0.2` and `1.1.3` alike). Skills, compose, and the Kubernetes files now give the direct path.
 - **`get_episodes` parameter** — `agentic-memory-read` documented `last_n`, which neither `1.0.2` nor `1.1.3` accepts; the parameter is `max_episodes`.
 - **Stale backend references** — both memory skills still described the stack as FalkorDB-backed; it has been Neo4j since the durable-persistence change.
 
